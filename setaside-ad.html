@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SetAside Ad</title>
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c93ff'/%3E%3Cstop offset='1' stop-color='%23a774ff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Crect x='7' y='15' width='5' height='10' rx='2' fill='%23fff'/%3E%3Crect x='13.5' y='9' width='5' height='16' rx='2' fill='%233ee6a8'/%3E%3Crect x='20' y='12' width='5' height='13' rx='2' fill='%23ffb547'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:ital,wght@0,600;0,700;1,700;1,800&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+  /* Player chrome in the SetAside dark brand (same tokens as the app and website). */
+  :root { --bg:#06080d; --fg:#eef1f8; --muted:#8d95aa; --line:rgba(255,255,255,.09); --line-2:rgba(255,255,255,.16); --surface:rgba(255,255,255,.045); --accent:#7c93ff; --grad:linear-gradient(135deg,#7c93ff,#a774ff); color-scheme:dark; }
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:var(--fg); font-family:Inter, system-ui, sans-serif; }
+  body::before { content:""; position:fixed; inset:0; z-index:-1; pointer-events:none;
+    background: radial-gradient(50% 40% at 15% 0%, rgba(124,147,255,.22), transparent 70%), radial-gradient(40% 35% at 95% 10%, rgba(167,116,255,.16), transparent 70%); }
+  .wrap { min-height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:16px; }
+  canvas { width:min(100%, calc((100vh - 120px) * 16 / 9)); aspect-ratio:16/9; height:auto; background:#06080d; border-radius:14px; border:1px solid var(--line-2); box-shadow:0 30px 80px -20px rgba(0,0,0,.8), 0 0 80px -20px rgba(124,147,255,.35); display:block; }
+  .bar { width:min(100%, calc((100vh - 120px) * 16 / 9)); display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:8px 10px; }
+  button { font:600 14px Inter, system-ui, sans-serif; border:1px solid var(--line-2); background:var(--surface); color:var(--fg); border-radius:10px; padding:8px 14px; cursor:pointer; }
+  button:hover { background:rgba(255,255,255,.08); }
+  button.primary { background:var(--grad); color:#070912; border:0; font-weight:700; box-shadow:0 8px 24px -8px rgba(124,147,255,.6); }
+  button:disabled { opacity:.5; cursor:default; }
+  button:focus-visible, input:focus-visible { outline:3px solid var(--accent); outline-offset:2px; }
+  input[type=range] { flex:1 1 200px; accent-color:var(--accent); }
+  .time { font-variant-numeric:tabular-nums; color:var(--muted); font-size:14px; min-width:92px; text-align:right; }
+  .msg { color:var(--muted); font-size:13px; width:min(100%, calc((100vh - 120px) * 16 / 9)); margin:0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <canvas id="c" width="1920" height="1080" aria-label="30-second ad for the SetAside app"></canvas>
+  <div class="bar">
+    <button id="play" class="primary" type="button">Pause</button>
+    <button id="restart" type="button">Restart</button>
+    <input id="scrub" type="range" min="0" max="30" step="0.001" value="0" aria-label="Timeline">
+    <span class="time" id="time">0.00 / 30.00</span>
+    <button id="rec" type="button">Save video</button>
+  </div>
+  <p class="msg" id="msg">Silent picture only. Record the voiceover from the ad script separately. Save video records the 30 seconds in real time and downloads the file. Keep this tab in front while it records.</p>
+</div>
+
+<script>
+(() => {
+'use strict';
+const W = 1920, H = 1080, DUR = 30, TAU = Math.PI * 2;
+const cv = document.getElementById('c'), x = cv.getContext('2d');
+// The SetAside dark brand: night background, bright bucket colors (same as the app and website).
+const C = {
+  night: '#06080d', panel: '#121725', panel2: '#1a2030', field: '#0b0e16',
+  fg: '#eef1f8', soft: '#c3cae0', muted: '#8d95aa', line: 'rgba(255,255,255,0.10)', line2: 'rgba(255,255,255,0.18)',
+  tax: '#7c93ff', violet: '#a774ff', save: '#3ee6a8', spend: '#ffb547', warn: '#ffc96b', onBright: '#070912'
+};
+const RGB = { tax: [124, 147, 255], violet: [167, 116, 255], save: [62, 230, 168], spend: [255, 181, 71] };
+const rgba = (c, a) => 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + a + ')';
+const DISPLAY = '"Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif', BODY = 'Inter, system-ui, sans-serif';
+const HEAD = 'italic 800'; // headline weight: condensed italic caps, like the app and website
+// Example numbers, as the app itself computes them: $12,000 received, "Not sure" if tax was taken out, NIL deal, $30,000 expected for the year.
+const EX = { received: 12000, tax: 2182, save: 6873, spend: 2945, expected: 30000, rate: '18.2%' };
+
+// Line icons (same Lucide-style paths the app and website use).
+const ICON = {
+  tax: new Path2D('M3 22h18M6 18v-7M10 18v-7M14 18v-7M18 18v-7M12 2l8 5H4z'),
+  save: new Path2D('M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-4c1-.5 1.7-1 2-2h2v-4h-2c0-1-.5-1.5-1-2V5zM2 9v1c0 1.1.9 2 2 2h1M16 11h.01'),
+  spend: new Path2D('M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4'),
+  bank: new Path2D('M4 6h16a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2zM12 10a2 2 0 1 0 0 4a2 2 0 1 0 0-4M6 12h.01M18 12h.01'),
+  calc: new Path2D('M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zM8 6h8M16 14v4M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M8 18h.01M12 18h.01'),
+  star: new Path2D('M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z'),
+  cap: new Path2D('M22 10L12 5 2 10l10 5zM6 12v5c3 3 9 3 12 0v-5M22 10v6'),
+  help: new Path2D('M12 2a10 10 0 1 0 0 20a10 10 0 1 0 0-20M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01'),
+  arrow: new Path2D('M5 12h14M12 5l7 7-7 7')
+};
+
+// ---------- helpers ----------
+const clamp01 = v => v < 0 ? 0 : v > 1 ? 1 : v;
+const seg = (t, a, b) => clamp01((t - a) / (b - a));
+const lerp = (a, b, p) => a + (b - a) * p;
+const eo = p => 1 - Math.pow(1 - p, 3);
+const eio = p => p < .5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+const eox = p => p >= 1 ? 1 : 1 - Math.pow(2, -10 * p);
+const eix = p => p <= 0 ? 0 : Math.pow(2, 10 * p - 10);
+const eob = (p, s = 1.7) => { if (p <= 0) return 0; if (p >= 1) return 1; const c = s + 1; return 1 + c * Math.pow(p - 1, 3) + s * Math.pow(p - 1, 2); };
+const money = n => '$' + Math.round(n).toLocaleString('en-US');
+function F(size, weight, fam) { return weight + ' ' + size + 'px ' + (fam || BODY); }
+function txt(s, px, py, size, weight, color, fam, align = 'left') { x.font = F(size, weight, fam); x.fillStyle = color; x.textAlign = align; x.textBaseline = 'alphabetic'; x.fillText(s, px, py); x.textAlign = 'left'; }
+function spaced(s, px, py, size, weight, color, sp, align = 'left') { x.save(); if ('letterSpacing' in x) x.letterSpacing = sp + 'px'; txt(s, px, py, size, weight, color, BODY, align); x.restore(); }
+function rr(px, py, w, h, r) { x.beginPath(); x.roundRect(px, py, w, h, Math.max(0, Math.min(r, w / 2, h / 2))); }
+function fillRR(px, py, w, h, r, color) { rr(px, py, w, h, r); x.fillStyle = color; x.fill(); }
+function strokeRR(px, py, w, h, r, color, lw) { rr(px, py, w, h, r); x.strokeStyle = color; x.lineWidth = lw; x.stroke(); }
+function linGrad(x0, y0, x1, y1, stops) { const g = x.createLinearGradient(x0, y0, x1, y1); stops.forEach(([o, c]) => g.addColorStop(o, c)); return g; }
+const brandGrad = (x0, x1, y = 0) => linGrad(x0, y, x1, y, [[0, C.tax], [1, C.violet]]);
+const headGrad = (x0, x1) => linGrad(x0, 0, x1, 0, [[0, '#ffffff'], [0.45, '#c8d2ff'], [1, C.violet]]);
+function glow(cx, cy, r, c, a) { const g = x.createRadialGradient(cx, cy, 0, cx, cy, r); g.addColorStop(0, rgba(c, a)); g.addColorStop(1, rgba(c, 0)); x.fillStyle = g; x.fillRect(0, 0, W, H); }
+function icon(p, cx, cy, size, color, lw = 2) { x.save(); x.translate(cx - size / 2, cy - size / 2); x.scale(size / 24, size / 24); x.strokeStyle = color; x.lineWidth = lw; x.lineCap = 'round'; x.lineJoin = 'round'; x.stroke(p); x.restore(); }
+function chip(cx, cy, s, color, rgb, p) { // a glowing bucket tile with its icon
+  x.save(); x.shadowColor = rgba(rgb, 0.55); x.shadowBlur = s * 0.6; fillRR(cx - s / 2, cy - s / 2, s, s, s * 0.3, color); x.restore();
+  icon(p, cx, cy, s * 0.52, C.onBright, 2.2);
+}
+
+// The night background: deep near-black, two colored glows, and a faint grid fading down.
+function night(g1 = RGB.tax, g2 = RGB.violet, a1 = 0.30, a2 = 0.20) {
+  x.fillStyle = C.night; x.fillRect(0, 0, W, H);
+  glow(W * 0.12, -80, 1150, g1, a1);
+  glow(W * 0.96, 140, 950, g2, a2);
+  x.save(); x.lineWidth = 1; x.strokeStyle = linGrad(0, 0, 0, H * 0.65, [[0, 'rgba(255,255,255,0.045)'], [1, 'rgba(255,255,255,0)']]);
+  x.beginPath();
+  for (let gx = 0; gx <= W; gx += 64) { x.moveTo(gx + 0.5, 0); x.lineTo(gx + 0.5, H * 0.65); }
+  for (let gy = 0; gy <= H * 0.65; gy += 64) { x.moveTo(0, gy + 0.5); x.lineTo(W, gy + 0.5); }
+  x.stroke(); x.restore();
+}
+
+// Lines of display type rising word by word from behind a mask (they enter, and later leave upward).
+// Display lines are set in condensed italic caps; `fill` may be a color or a gradient; `glowRGB` adds a soft glow.
+function riseLines(lines, t, tin, tout, px, py, size, lh, fill, align = 'left', fam = DISPLAY, weight = HEAD, glowRGB = null) {
+  if (t < tin - 0.01) return;
+  if (fam === DISPLAY) lines = lines.map(l => l.toUpperCase());
+  const out = tout == null ? 0 : eix(seg(t, tout, tout + 0.35));
+  let k = 0;
+  x.font = F(size, weight, fam); x.textBaseline = 'alphabetic';
+  lines.forEach((line, li) => {
+    const by = py + li * lh, words = line.split(' '), sp = x.measureText(' ').width;
+    const total = x.measureText(line).width;
+    let cx = align === 'center' ? px - total / 2 : px;
+    x.save(); x.beginPath(); x.rect(0, by - size * 1.05, W, size * 1.35); x.clip();
+    x.fillStyle = typeof fill === 'function' ? fill(cx, cx + total) : fill;
+    if (glowRGB) { x.shadowColor = rgba(glowRGB, 0.55); x.shadowBlur = size * 0.35; }
+    words.forEach(w => {
+      const q = eox(seg(t, tin + k * 0.09, tin + k * 0.09 + 0.5)); k++;
+      const dy = (1 - q) * size * 1.15 - out * size * 1.3;
+      x.fillText(w, cx, by + dy); cx += x.measureText(w).width + sp;
+    });
+    x.restore();
+  });
+}
+const GRAD_HEAD = (a, b) => headGrad(a, b);
+function pill(label, px, py) { // small "Example numbers" tag, amber outline like the app's notes
+  label = label.toUpperCase();
+  x.save(); if ('letterSpacing' in x) x.letterSpacing = '3px';
+  x.font = F(22, 700); const w = x.measureText(label).width + 48;
+  fillRR(px - w, py, w, 50, 25, 'rgba(255,201,107,0.09)'); strokeRR(px - w, py, w, 50, 25, 'rgba(255,201,107,0.45)', 2);
+  txt(label, px - w + 24, py + 33, 22, 700, C.warn);
+  x.restore();
+}
+function tap(px, py, lt) { // a finger tap: soft dot and expanding ring
+  if (lt < 0 || lt > 0.55) return;
+  const ring = eo(seg(lt, 0, 0.45));
+  x.save(); x.globalAlpha = 1 - seg(lt, 0.3, 0.55);
+  x.beginPath(); x.arc(px, py, 22, 0, TAU); x.fillStyle = 'rgba(255,255,255,.35)'; x.fill();
+  x.globalAlpha = (1 - ring) * 0.85; x.beginPath(); x.arc(px, py, 22 + ring * 34, 0, TAU); x.strokeStyle = '#ffffff'; x.lineWidth = 4; x.stroke();
+  x.restore();
+}
+// The SetAside logo: gradient tile with white, mint and amber bars. `fill` grows the bars.
+function logo(cx, cy, s, fill = 1) {
+  x.save(); x.translate(cx - 16 * s, cy - 16 * s); x.scale(s, s);
+  x.save(); x.shadowColor = rgba(RGB.tax, 0.55); x.shadowBlur = 14; fillRR(0, 0, 32, 32, 9, linGrad(0, 0, 32, 32, [[0, C.tax], [1, C.violet]])); x.restore();
+  [[7, 15, 10, '#ffffff'], [13.5, 9, 16, C.save], [20, 12, 13, C.spend]].forEach(([bx, by, bh, c], i) => {
+    const h = bh * eo(clamp01(fill * 1.6 - i * 0.3)); if (h > 0.2) fillRR(bx, 25 - h, 5, h, 2, c);
+  });
+  x.restore();
+}
+// A glowing ring split into the three buckets. p = [p1, p2, p3] growth of each segment.
+function ring(cx, cy, r, lw, p) {
+  x.save(); x.lineCap = 'butt';
+  x.beginPath(); x.arc(cx, cy, r, 0, TAU); x.strokeStyle = 'rgba(255,255,255,0.07)'; x.lineWidth = lw; x.stroke();
+  let a = -Math.PI / 2; const gap = 0.035;
+  [[EX.tax, C.tax, RGB.tax], [EX.save, C.save, RGB.save], [EX.spend, C.spend, RGB.spend]].forEach(([v, c, rgb], i) => {
+    const span = TAU * v / EX.received;
+    if (p[i] > 0) {
+      x.beginPath(); x.arc(cx, cy, r, a + gap / 2, a + gap / 2 + Math.max(0, span - gap) * p[i]);
+      x.strokeStyle = c; x.lineWidth = lw; x.shadowColor = rgba(rgb, 0.8); x.shadowBlur = lw * 0.8; x.stroke();
+    }
+    a += span;
+  });
+  x.restore();
+}
+
+// ---------- phone and the app's screens (drawn from the dark SetAside app) ----------
+const PW = 440, PH = 900, SW = PW - 28, SH = PH - 28;
+function phone(cx, cy, s, drawScreen) {
+  x.save(); x.translate(cx, cy); x.scale(s, s); x.translate(-PW / 2, -PH / 2);
+  x.save(); x.shadowColor = rgba(RGB.tax, 0.45); x.shadowBlur = 90; x.shadowOffsetY = 30;
+  fillRR(0, 0, PW, PH, 66, linGrad(0, 0, PW, PH, [[0, '#2a3150'], [0.4, '#10131d'], [1, '#1d2238']])); x.restore();
+  strokeRR(1, 1, PW - 2, PH - 2, 65, 'rgba(255,255,255,0.14)', 2);
+  rr(14, 14, SW, SH, 54); x.clip(); x.translate(14, 14);
+  x.fillStyle = C.night; x.fillRect(0, 0, SW, SH);
+  const g = x.createRadialGradient(40, 0, 0, 40, 0, 420); g.addColorStop(0, rgba(RGB.tax, 0.28)); g.addColorStop(1, rgba(RGB.tax, 0)); x.fillStyle = g; x.fillRect(0, 0, SW, SH);
+  drawScreen();
+  x.restore();
+}
+function appHeader(tab) {
+  txt('9:41', 30, 40, 17, 600, C.fg);
+  fillRR(SW / 2 - 60, 18, 120, 30, 15, '#000');
+  logo(42, 90, 1.05);
+  txt('SetAside', 66, 102, 36, HEAD, C.fg, DISPLAY);
+  fillRR(24, 122, SW - 48, 46, 13, 'rgba(255,255,255,0.045)'); strokeRR(24, 122, SW - 48, 46, 13, C.line, 1.5);
+  const tx = tab ? 24 + (SW - 48) / 2 + 2 : 28;
+  fillRR(tx, 126, (SW - 48) / 2 - 6, 38, 10, 'rgba(255,255,255,0.09)'); strokeRR(tx, 126, (SW - 48) / 2 - 6, 38, 10, C.line2, 1.2);
+  txt('New payment', 24 + (SW - 48) / 4, 151, 15, 600, tab ? C.muted : C.fg, BODY, 'center');
+  txt('My payments', 24 + (SW - 48) * 3 / 4, 151, 15, 600, tab ? C.fg : C.muted, BODY, 'center');
+}
+function title(s) { txt(s.toUpperCase(), 24, 214, 32, HEAD, C.fg, DISPLAY); }
+function field(label, value, py, active) {
+  txt(label, 24, py, 16, 600, C.fg);
+  if (active) { x.save(); x.shadowColor = rgba(RGB.tax, 0.5); x.shadowBlur = 18; fillRR(24, py + 12, SW - 48, 50, 12, C.field); x.restore(); }
+  else fillRR(24, py + 12, SW - 48, 50, 12, C.field);
+  strokeRR(24, py + 12, SW - 48, 50, 12, active ? C.tax : C.line, active ? 2.5 : 1.5);
+  txt('$', 40, py + 45, 20, 600, C.muted); txt(value, 60, py + 45, 21, 600, C.fg);
+  return py + 12;
+}
+function choice(px, py, w, h, sel) {
+  if (sel) { x.save(); x.shadowColor = rgba(RGB.tax, 0.45); x.shadowBlur = 16; fillRR(px, py, w, h, 12, linGrad(px, py, px + w, py + h, [[0, rgba(RGB.tax, 0.22)], [1, rgba(RGB.violet, 0.12)]])); x.restore(); }
+  else fillRR(px, py, w, h, 12, 'rgba(0,0,0,0.25)');
+  strokeRR(px, py, w, h, 12, sel ? C.tax : C.line, sel ? 2.2 : 1.5);
+}
+function newPaymentScreen(st) {
+  appHeader(0);
+  title('New payment');
+  const by = field('Amount you received', st.amount, 250, st.amountActive);
+  if (st.caret) { x.font = F(21, 600); const w = x.measureText(st.amount).width; x.fillStyle = C.tax; x.fillRect(62 + w, by + 12, 3, 26); }
+  txt('Was any tax already taken out?', 24, 350, 16, 600, C.fg);
+  ['No', 'Yes', 'Not sure'].forEach((l, i) => {
+    const cw = (SW - 48 - 16) / 3, px = 24 + i * (cw + 8), sel = i === 2;
+    choice(px, 362, cw, 44, sel);
+    txt(l, px + cw / 2, 390, 16, sel ? 600 : 500, sel ? C.fg : C.muted, BODY, 'center');
+  });
+  txt('What kind of payment?', 24, 446, 16, 600, C.fg);
+  [['School revenue share', ICON.cap], ['NIL deal or bonus', ICON.star], ['Not sure', ICON.help]].forEach(([l, ic], i) => {
+    const py = 458 + i * 52, sel = i === 1 && st.nil;
+    choice(24, py, SW - 48, 44, sel);
+    x.beginPath(); x.arc(46, py + 22, 8, 0, TAU); x.strokeStyle = sel ? C.tax : C.muted; x.lineWidth = 2; x.stroke();
+    if (sel) { x.beginPath(); x.arc(46, py + 22, 4.5, 0, TAU); x.fillStyle = C.tax; x.fill(); }
+    icon(ic, 74, py + 22, 18, sel ? C.tax : C.muted, 2);
+    txt(l, 92, py + 28, 16, sel ? 600 : 500, sel ? C.fg : C.muted);
+  });
+  field('Expected total income this year', '30,000', 640, false);
+  const pr = 1 - 0.05 * Math.sin(Math.PI * clamp01(st.press || 0));
+  x.save(); x.translate(SW / 2, 750); x.scale(pr, pr);
+  x.save(); x.shadowColor = rgba(RGB.tax, 0.6); x.shadowBlur = 26; x.shadowOffsetY = 8;
+  fillRR(-(SW - 48) / 2, -28, SW - 48, 56, 14, linGrad(-(SW - 48) / 2, 0, (SW - 48) / 2, 0, [[0, C.tax], [1, C.violet]])); x.restore();
+  txt('See my split', -10, 6, 18, 700, C.onBright, BODY, 'center'); icon(ICON.arrow, 66, 0, 18, C.onBright, 2.4);
+  x.restore();
+}
+function splitScreen(st) {
+  appHeader(0);
+  title('Your split');
+  // the glowing ring sweeps in, bucket by bucket
+  const rcx = SW / 2, rcy = 322;
+  ring(rcx, rcy, 80, 20, [st.b1, st.b2, st.b3]);
+  spaced('RECEIVED', rcx, rcy - 16, 10, 600, C.muted, 2, 'center');
+  txt(money(lerp(0, EX.received, eo(seg(st.b1, 0, 1)))), rcx, rcy + 20, 38, 700, C.fg, DISPLAY, 'center');
+  txt('NIL deal or bonus', rcx, rcy + 42, 12, 500, C.muted, BODY, 'center');
+  const ex = st.expand; // how-it-was-figured panel
+  let py = 428;
+  const bucket = (label, val, col, rgb, ic, h, p, extra) => {
+    x.save(); x.globalAlpha = clamp01(p * 2); x.translate(0, (1 - eo(p)) * 24);
+    fillRR(24, py, SW - 48, h, 16, linGrad(24, py, SW - 24, py + h, [[0, rgba(rgb, 0.15)], [0.75, rgba(rgb, 0)]]));
+    strokeRR(24, py, SW - 48, h, 16, C.line, 1.5);
+    x.save(); x.shadowColor = col; x.shadowBlur = 12; fillRR(24, py + 14, 3, 52, 2, col); x.restore();
+    chip(62, py + 40, 40, col, rgb, ic);
+    spaced(label, 94, py + 36, 12, 700, col, 1.6);
+    txt(Math.round(val / EX.received * 100) + '% of payment', 94, py + 56, 12, 500, C.muted);
+    x.save(); x.shadowColor = rgba(rgb, 0.5); x.shadowBlur = 18;
+    txt(money(lerp(0, val, eo(seg(p, 0, 1)))), SW - 40, py + 54, 40, 700, col, DISPLAY, 'right'); x.restore();
+    if (extra) extra(py);
+    x.restore(); py += h + 10;
+  };
+  bucket('TAXES (SET ASIDE)', EX.tax, C.tax, RGB.tax, ICON.tax, 104 + 100 * ex, st.a1, (y0) => {
+    icon(ICON.calc, 48, y0 + 86, 15, '#b8c4ff', 2);
+    txt('How was this figured?', 64, y0 + 91, 14, 600, '#b8c4ff');
+    x.save(); x.translate(SW - 48, y0 + 86); x.rotate(ex * Math.PI); x.beginPath(); x.moveTo(-5, -2.5); x.lineTo(0, 2.5); x.lineTo(5, -2.5); x.strokeStyle = '#b8c4ff'; x.lineWidth = 2; x.lineCap = 'round'; x.stroke(); x.restore();
+    if (ex > 0) {
+      x.save(); x.globalAlpha = seg(ex, 0.4, 1);
+      fillRR(38, y0 + 104, SW - 76, 90, 10, 'rgba(0,0,0,0.3)');
+      [['Expected income this year', '$30,000'], ['Share that goes to tax', EX.rate], ['Set aside now', '$2,182']].forEach(([a, b], i) => {
+        const ry = y0 + 128 + i * 27; txt(a, 50, ry, 13, i === 2 ? 700 : 400, i === 2 ? C.fg : C.muted); txt(b, SW - 50, ry, 13, i === 2 ? 700 : 500, C.fg, BODY, 'right');
+      });
+      x.restore();
+    }
+  });
+  bucket('SAVINGS', EX.save, C.save, RGB.save, ICON.save, 80, st.a2);
+  bucket('SPENDING CASH', EX.spend, C.spend, RGB.spend, ICON.spend, 80, st.a3);
+  txt('Estimate based on 2025 federal tax rules.', 24, SH - 34, 12, 500, C.muted);
+  txt('Not tax advice.', 24, SH - 16, 12, 500, C.muted);
+}
+
+// ---------- the money moment props ----------
+function notification(cx, cy, s) {
+  x.save(); x.translate(cx, cy); x.scale(s, s);
+  x.save(); x.shadowColor = 'rgba(0,0,0,.6)'; x.shadowBlur = 50; x.shadowOffsetY = 20;
+  fillRR(-360, -110, 720, 220, 36, 'rgba(22,27,42,0.92)'); x.restore();
+  strokeRR(-360, -110, 720, 220, 36, C.line2, 2);
+  x.save(); x.shadowColor = rgba(RGB.tax, 0.6); x.shadowBlur = 24; fillRR(-320, -70, 76, 76, 20, linGrad(-320, -70, -244, 6, [[0, C.tax], [1, C.violet]])); x.restore();
+  icon(ICON.bank, -282, -32, 44, C.onBright, 2.2);
+  txt('Your bank', -220, -42, 30, 600, C.muted); txt('now', 320, -42, 26, 500, C.muted, BODY, 'right');
+  txt('Deposit received', -220, 6, 38, 700, C.fg);
+  x.save(); x.shadowColor = rgba(RGB.save, 0.55); x.shadowBlur = 22; txt('+$12,000.00', -220, 64, 50, 700, C.save, DISPLAY); x.restore();
+  x.restore();
+}
+
+// ======================= SCENES (from the ad script) =======================
+// 0–5  Got paid?  Quick cuts, then the question and the three buckets.
+function s1(t) {
+  if (t < 0.9) { // deposit notification drops in
+    night(RGB.tax, RGB.violet, 0.55, 0.35);
+    const p = eob(seg(t + 0.25, 0, 0.55), 1.5);
+    notification(W / 2, lerp(-200, 540, p), lerp(1.1, 1.25, t));
+    pill('Example numbers', W - 60, 50);
+  } else if (t < 1.8) { // balance counts up
+    const lt = t - 0.9; night(RGB.violet, RGB.tax, 0.35, 0.25);
+    spaced('AVAILABLE BALANCE', W / 2, 420, 40, 600, C.muted, 8, 'center');
+    const v = lerp(6000, 12000, eo(seg(lt, 0, 0.6)));
+    x.save(); x.translate(W / 2, 650); const sc = lerp(0.92, 1.0, eo(seg(lt, 0, 0.9))); x.scale(sc, sc);
+    x.shadowColor = rgba(RGB.tax, 0.6); x.shadowBlur = 60;
+    txt('$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }), 0, 0, 270, 700, C.fg, DISPLAY, 'center'); x.restore();
+    pill('Example numbers', W - 60, 50);
+  } else if (t < 2.7) { // a teammate texts
+    const lt = t - 1.8; night(RGB.save, RGB.tax, 0.35, 0.25);
+    const b1 = eob(seg(lt, 0, 0.3), 1.6), b2 = eob(seg(lt, 0.3, 0.6), 1.6);
+    x.save(); x.translate(760, 430); x.scale(b1, b1); fillRR(-330, -80, 660, 160, 60, C.panel2); strokeRR(-330, -80, 660, 160, 60, C.line2, 2); txt('you get paid yet?', -270, 22, 58, 600, C.fg); x.restore();
+    x.save(); x.translate(1180, 650); x.scale(b2, b2); x.save(); x.shadowColor = rgba(RGB.tax, 0.5); x.shadowBlur = 40; fillRR(-330, -80, 660, 160, 60, linGrad(-330, 0, 330, 0, [[0, C.tax], [1, C.violet]])); x.restore(); txt('yeah. now what?', -270, 22, 58, 700, C.onBright); x.restore();
+  } else { // the question, then the three buckets
+    const lt = t - 2.7; night();
+    riseLines(['Got paid?'], lt, 0, 0.65, W / 2, 620, 280, 0, GRAD_HEAD, 'center');
+    const words = [['Taxes.', C.tax, RGB.tax], ['Savings.', C.save, RGB.save], ['Spending.', C.spend, RGB.spend]];
+    words.forEach(([w, c, g], i) => riseLines([w], lt, 0.95 + i * 0.2, null, W / 2 - 600 + i * 600, 520, 140, 0, c, 'center', DISPLAY, HEAD, g));
+    riseLines(["What's yours?"], lt, 1.7, null, W / 2, 760, 120, 0, GRAD_HEAD, 'center');
+  }
+}
+
+// 5–12  Was tax taken out?  Close on the deposit; the question; the plain fact.
+function s2(t) {
+  night(RGB.tax, RGB.spend, 0.28, 0.12);
+  const push = lerp(1.25, 1.36, eio(seg(t, 0, 7)));
+  notification(560, 540, push);
+  // a painted ring around the amount
+  const rp = eo(seg(t, 0.6, 1.2));
+  if (rp > 0) {
+    x.save(); x.translate(560, 540); x.scale(push, push);
+    x.beginPath(); const n = 80; for (let i = 0; i <= n * rp; i++) { const a = -2.6 + i / n * TAU * 1.1, j = 1 + i / n * 0.06; x.lineTo(-90 + Math.cos(a) * 190 * j, 44 + Math.sin(a) * 60 * j); }
+    x.strokeStyle = C.spend; x.lineWidth = 7; x.lineCap = 'round'; x.shadowColor = rgba(RGB.spend, 0.8); x.shadowBlur = 18; x.stroke(); x.restore();
+  }
+  pill('Example numbers', W - 60, 50);
+  riseLines(['Was tax', 'taken out?'], t, 0.3, 2.3, 1090, 470, 150, 160, C.fg);
+  riseLines(['Not sure?'], t, 2.7, 3.9, 1090, 560, 170, 0, C.tax, 'left', DISPLAY, HEAD, RGB.tax);
+  riseLines(['If nothing was', 'taken out, the', 'taxes are on you.'], t, 4.3, null, 1090, 410, 92, 112, GRAD_HEAD);
+}
+
+// 12–25  The app: type the payment, a few quick questions, the split, and how it was figured.
+function s3(t) {
+  night(RGB.tax, RGB.violet, 0.22, 0.14);
+  const pin = eob(seg(t, 0, 0.6), 1.3);
+  const camS = lerp(1.0, 1.07, eio(seg(t, 1, 12))) * lerp(0.9, 1, pin);
+  // soft glows of the three bucket colors behind the phone
+  [[RGB.tax, 1200, 1.0], [RGB.save, 1340, 1.0], [RGB.spend, 1480, 1.0]].forEach(([c, cxx, k], i) => glow(cxx + Math.sin(t * 0.5 + i) * 14, 560 + Math.cos(t * 0.4 + i) * 20, 420 * pin * k, c, 0.22));
+  const ph = { cx: 1340, cy: 560 + (1 - pin) * 600 };
+  // phone screen state from time
+  const typed = '12,000'.slice(0, Math.max(0, Math.floor((t - 1.0) * 7)));
+  const slide = eio(seg(t, 4.6, 5.0));
+  const st = { amount: typed, amountActive: t > 0.9 && t < 2.2, caret: t > 0.9 && t < 2.2 && Math.floor(t / 0.5) % 2 === 0, nil: t > 3.2, press: seg(t, 3.9, 4.2) };
+  const sp = { b1: eo(seg(t, 5.2, 5.8)), b2: eo(seg(t, 5.45, 6.05)), b3: eo(seg(t, 5.7, 6.3)), a1: seg(t, 5.5, 6.1), a2: seg(t, 6.0, 6.6), a3: seg(t, 6.5, 7.1), expand: eio(seg(t, 8.0, 8.5)) };
+  phone(ph.cx, ph.cy, camS, () => {
+    if (slide < 1) { x.save(); x.translate(-slide * SW, 0); newPaymentScreen(st); x.restore(); }
+    if (slide > 0) { x.save(); x.translate((1 - slide) * SW, 0); splitScreen(sp); x.restore(); }
+  });
+  // taps, placed in stage coordinates through the same phone transform
+  const toStage = (sx, sy) => [ph.cx + (sx + 14 - PW / 2) * camS, ph.cy + (sy + 14 - PH / 2) * camS];
+  tap(...toStage(200, 290), t - 0.8);
+  tap(...toStage(SW - 80, 384), t - 2.5);
+  tap(...toStage(180, 532), t - 3.1);
+  tap(...toStage(SW / 2, 750), t - 3.9);
+  tap(...toStage(140, 428 + 86), t - 7.8);
+  pill('Example numbers', W - 60, 50);
+  // the voiceover, as on-screen words
+  riseLines(['Type the', 'payment.'], t, 0.5, 2.1, 160, 440, 150, 150, GRAD_HEAD);
+  riseLines(['Answer a few', 'quick questions.'], t, 2.5, 4.4, 160, 440, 120, 128, GRAD_HEAD);
+  riseLines(['See your split,'], t, 4.9, 7.4, 160, 490, 124, 0, GRAD_HEAD);
+  riseLines(['and exactly how', 'the tax was', 'figured.'], t, 7.8, null, 160, 400, 118, 126, GRAD_HEAD);
+}
+
+// 25–30  End card.
+function s4(t) {
+  night(RGB.tax, RGB.violet, 0.32, 0.22);
+  glow(W / 2, H + 120, 900, RGB.save, 0.14 * eo(seg(t, 0.5, 1.5)));
+  riseLines(['Free. No account. Your payments stay on your phone.'], t, 0.1, null, W / 2, 250, 50, 0, C.soft, 'center', BODY, 600);
+  const mp = eob(seg(t, 0.5, 0.95), 1.6);
+  x.save(); x.translate(W / 2 - 360, 512); x.scale(mp, mp); logo(0, 0, 6.2, seg(t, 0.6, 1.4)); x.restore();
+  riseLines(['SetAside'], t, 0.75, null, W / 2 - 200, 590, 240, 0, GRAD_HEAD);
+  riseLines(['A free estimate for athletes without a financial adviser.'], t, 1.4, null, W / 2, 770, 50, 0, C.fg, 'center', BODY, 500);
+  riseLines(['Estimate based on 2025 federal tax rules. Not tax advice.'], t, 0.3, null, W / 2, 990, 32, 0, C.muted, 'center', BODY, 500);
+}
+
+const TIMELINE = [[0, 5, s1], [5, 12, s2], [12, 25, s3], [25, 30, s4]];
+function render(t) {
+  t = Math.max(0, Math.min(DUR - 1e-4, t));
+  x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.shadowBlur = 0; x.shadowColor = 'transparent';
+  for (const [a, b, f] of TIMELINE) if (t >= a && t < b) { f(t - a); break; }
+}
+
+// ======================= player =======================
+const playBtn = document.getElementById('play'), scrub = document.getElementById('scrub'), timeEl = document.getElementById('time'), recBtn = document.getElementById('rec'), msg = document.getElementById('msg');
+let playing = true, t0 = 0, base = 0, cur = 0, recording = null;
+const now = () => performance.now() / 1000;
+function setTime(t) { cur = t; base = t; t0 = now(); }
+function frame() {
+  if (playing) { cur = base + (now() - t0); if (cur >= DUR) { cur = DUR; if (recording) stopRec(); else { playing = false; playBtn.textContent = 'Play'; } } }
+  render(cur); scrub.value = cur; timeEl.textContent = cur.toFixed(2) + ' / ' + DUR.toFixed(2);
+  requestAnimationFrame(frame);
+}
+playBtn.onclick = () => { if (recording) return; if (!playing && cur >= DUR) setTime(0); playing = !playing; if (playing) setTime(cur); playBtn.textContent = playing ? 'Pause' : 'Play'; };
+document.getElementById('restart').onclick = () => { if (recording) return; setTime(0); playing = true; playBtn.textContent = 'Pause'; };
+scrub.oninput = () => { if (recording) return; playing = false; playBtn.textContent = 'Play'; cur = +scrub.value; };
+function pickType() { return ['video/mp4;codecs=avc1.640028', 'video/mp4', 'video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find(tp => window.MediaRecorder && MediaRecorder.isTypeSupported(tp)); }
+recBtn.onclick = () => {
+  const type = pickType();
+  if (!type || !cv.captureStream) { msg.textContent = 'This browser cannot record the canvas. Try a current version of Chrome or Edge.'; return; }
+  const chunks = [], rec = new MediaRecorder(cv.captureStream(60), { mimeType: type, videoBitsPerSecond: 16e6 });
+  rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+  rec.onstop = () => {
+    const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob(chunks, { type: type.split(';')[0] }));
+    a.download = 'setaside-ad.' + (type.includes('mp4') ? 'mp4' : 'webm'); a.click();
+    msg.textContent = 'Saved ' + a.download + ' to your downloads.'; recBtn.disabled = false; recording = null;
+  };
+  recording = rec; recBtn.disabled = true; msg.textContent = 'Recording… keep this tab in front.';
+  render(0); rec.start(); setTime(0); playing = true; playBtn.textContent = 'Pause';
+};
+function stopRec() { const r = recording; setTimeout(() => r.state !== 'inactive' && r.stop(), 150); playing = false; playBtn.textContent = 'Play'; }
+
+const ready = document.fonts ? Promise.race([Promise.all([document.fonts.load(F(100, HEAD, DISPLAY)), document.fonts.load(F(100, 700, DISPLAY)), document.fonts.load(F(100, 600)), document.fonts.load(F(100, 500)), document.fonts.load(F(100, 700))]), new Promise(r => setTimeout(r, 2500))]) : Promise.resolve();
+ready.then(() => { const m = /[?&]t=([0-9.]+)/.exec(location.search); setTime(m ? +m[1] : 0); if (m) { playing = false; playBtn.textContent = 'Play'; } requestAnimationFrame(frame); });
+})();
+</script>
+</body>
+</html>

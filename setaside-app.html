@@ -1,0 +1,1202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SetAside</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#06080d">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237c93ff'/%3E%3Cstop offset='1' stop-color='%23a774ff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='url(%23g)'/%3E%3Crect x='7' y='15' width='5' height='10' rx='2' fill='%23fff'/%3E%3Crect x='13.5' y='9' width='5' height='16' rx='2' fill='%233ee6a8'/%3E%3Crect x='20' y='12' width='5' height='13' rx='2' fill='%23ffb547'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:ital,wght@0,600;0,700;1,700;1,800&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* SetAside, dark edition.
+   One narrow phone column on a deep night background with soft colored glows.
+   The three buckets each own a bright color + icon: taxes (electric blue), savings (mint), spending (amber).
+   The split is drawn as a glowing ring; amounts count up when the split opens. */
+:root {
+  --bg: #06080d;
+  --solid: #0d1119;
+  --surface: rgba(255, 255, 255, 0.045);
+  --surface-2: rgba(255, 255, 255, 0.075);
+  --fg: #eef1f8;
+  --muted: #8d95aa;
+  --line: rgba(255, 255, 255, 0.09);
+  --line-2: rgba(255, 255, 255, 0.16);
+  --accent: #7c93ff;
+  --accent-2: #a774ff;
+  --grad: linear-gradient(135deg, #7c93ff 0%, #a774ff 100%);
+  --on-bright: #070912;
+  --tax: #7c93ff;
+  --save: #3ee6a8;
+  --spend: #ffb547;
+  --tax-soft: rgba(124, 147, 255, 0.14);
+  --save-soft: rgba(62, 230, 168, 0.11);
+  --spend-soft: rgba(255, 181, 71, 0.11);
+  --warn: #ffc96b;
+  --warn-soft: rgba(255, 201, 107, 0.07);
+  --warn-line: rgba(255, 201, 107, 0.26);
+  --danger: #ff7a85;
+  --radius: 18px;
+  --font-display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { background: var(--bg); }
+body {
+  margin: 0; min-height: 100vh;
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-body); font-size: 16px; line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+/* Ambient glows + a faint field grid, fixed behind everything. */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  background:
+    radial-gradient(60% 40% at 10% -5%, rgba(124, 147, 255, 0.28), transparent 70%),
+    radial-gradient(50% 35% at 105% 15%, rgba(167, 116, 255, 0.20), transparent 70%),
+    radial-gradient(60% 40% at 50% 110%, rgba(62, 230, 168, 0.10), transparent 70%);
+}
+body::after {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 32px 32px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 55%);
+          mask-image: linear-gradient(180deg, #000 0%, transparent 55%);
+}
+.wrap {
+  max-width: 480px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-bottom: 48px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+
+/* Icons: inline SVG symbols, drawn with the current text color. */
+.i { width: 1.15em; height: 1.15em; flex: none; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.2em; }
+.chip { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 12px; flex: none; }
+.chip .i { width: 20px; height: 20px; }
+.chip.tax   { background: var(--tax);   color: var(--on-bright); box-shadow: 0 0 22px rgba(124,147,255,0.45); }
+.chip.save  { background: var(--save);  color: var(--on-bright); box-shadow: 0 0 22px rgba(62,230,168,0.40); }
+.chip.spend { background: var(--spend); color: var(--on-bright); box-shadow: 0 0 22px rgba(255,181,71,0.40); }
+.chip.soft  { background: var(--surface-2); color: var(--accent); border: 1px solid var(--line); }
+
+/* Header */
+header {
+  position: sticky; top: 0; z-index: 10;
+  margin: 0 -16px; padding: 14px 16px 12px;
+  padding-top: max(14px, env(safe-area-inset-top, 0px));
+  background: rgba(6, 8, 13, 0.72);
+  -webkit-backdrop-filter: blur(14px) saturate(140%); backdrop-filter: blur(14px) saturate(140%);
+  border-bottom: 1px solid var(--line);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.brand { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.logo-btn { display: flex; align-items: center; gap: 10px; background: none; border: 0; padding: 0; cursor: pointer; color: inherit; border-radius: 10px; }
+.logo { width: 34px; height: 34px; flex: none; filter: drop-shadow(0 0 12px rgba(124,147,255,0.5)); }
+.brand h1 { font-family: var(--font-display); font-weight: 800; font-style: italic; font-size: 1.75rem; margin: 0; letter-spacing: 0.01em; line-height: 1; }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line); background: var(--surface); padding: 5px 10px; border-radius: 999px; white-space: nowrap;
+}
+.pill .i { color: var(--save); width: 14px; height: 14px; }
+.tabs { display: grid; grid-template-columns: 1.2fr 1.2fr 0.9fr; gap: 4px; background: var(--surface); border: 1px solid var(--line); padding: 4px; border-radius: 14px; }
+.tabs button {
+  font: 600 0.92rem var(--font-body); border: 0; border-radius: 10px; padding: 10px 8px;
+  background: transparent; color: var(--muted); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; gap: 8px; transition: color 0.2s, background 0.2s;
+}
+.tabs button:hover { color: var(--fg); }
+.tabs button[aria-selected="true"] { background: var(--surface-2); color: var(--fg); box-shadow: inset 0 0 0 1px var(--line-2), 0 4px 18px rgba(124,147,255,0.18); }
+.tabs button[aria-selected="true"] .i { color: var(--accent); }
+
+h2 { font-family: var(--font-display); font-weight: 800; font-style: italic; text-transform: uppercase; font-size: 2rem; letter-spacing: 0.01em; line-height: 1; margin: 6px 0 0; text-wrap: balance; }
+.screen { display: flex; flex-direction: column; gap: 18px; animation: rise 0.35s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.card {
+  background: linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.025));
+  border: 1px solid var(--line); border-radius: var(--radius); padding: 18px;
+  display: flex; flex-direction: column; gap: 18px;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset, 0 20px 40px -20px rgba(0,0,0,0.6);
+}
+.hint { color: var(--muted); font-size: 0.85rem; margin: 0; }
+.fine { color: var(--muted); font-size: 0.78rem; margin: 0; line-height: 1.55; }
+.fine .i { width: 13px; height: 13px; vertical-align: -0.15em; }
+
+/* Form */
+.field { display: flex; flex-direction: column; gap: 8px; border: 0; margin: 0; padding: 0; min-width: 0; }
+.field > label, .field > legend { font-weight: 600; font-size: 0.92rem; padding: 0; display: flex; align-items: center; gap: 8px; }
+.field > label .i, .field > legend .i { color: var(--accent); }
+.money { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 12px; background: rgba(0,0,0,0.25); transition: border-color 0.2s, box-shadow 0.2s; }
+.money:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(124,147,255,0.16), 0 0 24px rgba(124,147,255,0.18); }
+.money span { padding-left: 14px; color: var(--muted); font-weight: 600; }
+.money input, input[type="date"] {
+  font: 600 1.15rem var(--font-body); font-variant-numeric: tabular-nums;
+  border: 0; background: transparent; color: var(--fg); padding: 13px 12px; width: 100%; min-width: 0;
+}
+.money input:focus-visible { outline: none; }
+input[type="date"] { border: 1px solid var(--line); border-radius: 12px; background: rgba(0,0,0,0.25); font-size: 1rem; }
+.choices { display: flex; flex-direction: column; gap: 8px; }
+.choices.row { flex-direction: row; flex-wrap: wrap; }
+.choices label {
+  display: flex; align-items: center; gap: 10px; padding: 12px 14px; border: 1px solid var(--line);
+  border-radius: 12px; cursor: pointer; background: rgba(0,0,0,0.2); color: var(--muted); font-weight: 500;
+  transition: border-color 0.2s, background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+.choices label:hover { border-color: var(--line-2); color: var(--fg); }
+.choices.row label { flex: 1 1 80px; justify-content: center; }
+.choices label:has(input:checked) {
+  border-color: var(--accent); color: var(--fg); font-weight: 600;
+  background: linear-gradient(135deg, rgba(124,147,255,0.18), rgba(167,116,255,0.10));
+  box-shadow: 0 0 0 1px rgba(124,147,255,0.35) inset, 0 6px 20px -8px rgba(124,147,255,0.5);
+}
+.choices label:has(input:checked) .i { color: var(--accent); }
+.choices input { accent-color: var(--accent); margin: 0; }
+.example {
+  background: var(--warn-soft); border: 1px solid var(--warn-line); border-radius: 12px;
+  padding: 10px 12px; font-size: 0.85rem; margin: 0; display: flex; gap: 10px; align-items: flex-start; color: #f3e3c3;
+}
+.example .i { color: var(--warn); margin-top: 2px; }
+.example.ok { background: var(--save-soft); border-color: rgba(62,230,168,0.35); color: #cdf7e7; }
+.example.ok .i { color: var(--save); }
+.error { color: var(--danger); font-size: 0.9rem; margin: 0; }
+
+/* Buttons */
+.btn {
+  font: 700 1rem var(--font-body); border-radius: 14px; padding: 15px 18px; cursor: pointer;
+  border: 0; background: var(--grad); color: var(--on-bright);
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  box-shadow: 0 10px 30px -8px rgba(124,147,255,0.6), 0 1px 0 rgba(255,255,255,0.35) inset;
+  transition: transform 0.12s ease, box-shadow 0.2s, filter 0.2s;
+}
+.btn:hover { filter: brightness(1.08); box-shadow: 0 14px 36px -8px rgba(124,147,255,0.75), 0 1px 0 rgba(255,255,255,0.35) inset; }
+.btn:active { transform: scale(0.98); }
+.btn .i { transition: transform 0.2s; }
+.btn:hover .i-go { transform: translateX(3px); }
+.btn.secondary { background: var(--surface); color: var(--fg); border: 1px solid var(--line); box-shadow: none; }
+.btn.secondary:hover { background: var(--surface-2); }
+.btn.danger { background: transparent; color: var(--danger); border: 1px solid rgba(255,122,133,0.5); box-shadow: none; }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.btn-row .btn { flex: 1 1 120px; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+
+/* Welcome (the hook) */
+.hero {
+  position: relative; overflow: hidden; border-radius: 24px; padding: 26px 20px 20px;
+  background:
+    radial-gradient(120% 80% at 100% 0%, rgba(167,116,255,0.30), transparent 60%),
+    radial-gradient(100% 80% at 0% 100%, rgba(62,230,168,0.12), transparent 60%),
+    linear-gradient(160deg, #141a33, #0b0f1c);
+  border: 1px solid var(--line-2);
+  display: flex; flex-direction: column; gap: 16px;
+  box-shadow: 0 30px 60px -30px rgba(124,147,255,0.45);
+}
+.hero h2 {
+  font-size: clamp(3.4rem, 17vw, 4.6rem); line-height: 0.88; margin: 0; letter-spacing: -0.005em;
+  background: linear-gradient(95deg, #ffffff 0%, #c8d2ff 45%, #a774ff 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.hero p.lede { margin: 0; color: #c3cae0; font-size: 1rem; max-width: 34ch; }
+.demo {
+  display: grid; grid-template-columns: 124px 1fr; gap: 16px; align-items: center;
+  background: rgba(0,0,0,0.25); border: 1px solid var(--line); border-radius: 18px; padding: 14px;
+}
+.demo-legend { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.demo-legend .row { display: flex; align-items: center; gap: 10px; font-size: 0.85rem; color: var(--muted); }
+.demo-legend .row b { margin-left: auto; color: var(--fg); font-family: var(--font-display); font-size: 1.2rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.demo-legend .chip { width: 28px; height: 28px; border-radius: 8px; }
+.demo-legend .chip .i { width: 16px; height: 16px; }
+.demo-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--muted); margin: 0; font-weight: 600; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+.steps li { display: flex; gap: 14px; align-items: center; }
+.steps .num {
+  font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 1.6rem; line-height: 1; width: 28px; text-align: center;
+  background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.steps strong { display: block; font-size: 0.95rem; }
+.steps span.sub { color: var(--muted); font-size: 0.85rem; }
+.steps .chip { margin-left: auto; }
+.trust { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.trust li {
+  display: flex; gap: 10px; align-items: flex-start; font-size: 0.8rem; color: var(--muted);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px;
+}
+.trust .i { margin-top: 1px; color: var(--save); }
+.trust li:last-child .i { color: var(--warn); }
+
+/* Ring chart (split + demo) */
+.ring { width: 100%; height: auto; transform: rotate(-90deg); overflow: visible; display: block; }
+.ring circle { fill: none; stroke-width: 13; }
+.ring .track { stroke: rgba(255,255,255,0.06); }
+.ring .seg { transition: stroke-dasharray 1s cubic-bezier(.2,.8,.2,1), stroke-dashoffset 1s cubic-bezier(.2,.8,.2,1); }
+.ring .seg.tax   { stroke: var(--tax);   filter: drop-shadow(0 0 5px rgba(124,147,255,0.7)); }
+.ring .seg.save  { stroke: var(--save);  filter: drop-shadow(0 0 5px rgba(62,230,168,0.6)); }
+.ring .seg.spend { stroke: var(--spend); filter: drop-shadow(0 0 5px rgba(255,181,71,0.6)); }
+.ring-wrap { position: relative; width: min(230px, 64vw); margin: 4px auto 0; }
+.ring-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 2px; }
+.ring-center .k { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); font-weight: 600; }
+.ring-center strong { font-family: var(--font-display); font-weight: 700; font-size: 2.3rem; line-height: 1; font-variant-numeric: tabular-nums; }
+.ring-center .d { font-size: 0.75rem; color: var(--muted); max-width: 66%; line-height: 1.3; }
+.ring-center strong + .d { margin-top: 4px; }
+
+/* Split screen */
+.bucket {
+  position: relative; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 12px;
+  border: 1px solid var(--line); overflow: hidden;
+}
+.bucket::before { content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 0 3px 3px 0; }
+.bucket.tax   { background: linear-gradient(120deg, var(--tax-soft), transparent 75%); }
+.bucket.save  { background: linear-gradient(120deg, var(--save-soft), transparent 75%); }
+.bucket.spend { background: linear-gradient(120deg, var(--spend-soft), transparent 75%); }
+.bucket.tax::before { background: var(--tax); box-shadow: 0 0 12px var(--tax); }
+.bucket.save::before { background: var(--save); box-shadow: 0 0 12px var(--save); }
+.bucket.spend::before { background: var(--spend); box-shadow: 0 0 12px var(--spend); }
+.bucket-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.bucket-title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.bucket-name { font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.75rem; display: block; }
+.bucket-pct { font-size: 0.8rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.tax .bucket-name, .tax .amt { color: var(--tax); }
+.save .bucket-name, .save .amt { color: var(--save); }
+.spend .bucket-name, .spend .amt { color: var(--spend); }
+.amt { font-family: var(--font-display); font-weight: 700; font-size: 2.1rem; font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; }
+.tax .amt { text-shadow: 0 0 24px rgba(124,147,255,0.45); }
+.save .amt { text-shadow: 0 0 24px rgba(62,230,168,0.35); }
+.spend .amt { text-shadow: 0 0 24px rgba(255,181,71,0.35); }
+/* Split slider: how what's left after taxes divides between savings and spending. */
+.mix { display: flex; flex-direction: column; gap: 12px; padding: 16px 14px; border: 1px solid var(--line); border-radius: 16px; background: rgba(0,0,0,0.22); }
+.mix-top { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.mix-title { font-weight: 700; font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; display: flex; align-items: center; gap: 8px; }
+.mix-title .i { color: var(--accent); }
+.mix-left { color: var(--muted); font-size: 0.82rem; font-variant-numeric: tabular-nums; }
+.mix-labels { display: flex; justify-content: space-between; font-weight: 600; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+.mix-labels b { font-family: var(--font-display); font-size: 1.35rem; margin-left: 4px; }
+.mix-labels .s { color: var(--save); } .mix-labels .p { color: var(--spend); }
+.mixr { -webkit-appearance: none; appearance: none; width: 100%; height: 30px; background: transparent; margin: 0; cursor: pointer; --p: 70%; }
+.mixr::-webkit-slider-runnable-track { height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--save) 0 var(--p), var(--spend) var(--p) 100%); box-shadow: 0 0 16px rgba(62,230,168,0.22); }
+.mixr::-moz-range-track { height: 10px; border-radius: 5px; background: linear-gradient(90deg, var(--save) 0 var(--p), var(--spend) var(--p) 100%); }
+.mixr::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 28px; height: 28px; border-radius: 50%; background: #fff; border: 0; margin-top: -9px; box-shadow: 0 0 0 5px rgba(255,255,255,0.14), 0 4px 14px rgba(0,0,0,0.5); }
+.mixr::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: #fff; border: 0; box-shadow: 0 0 0 5px rgba(255,255,255,0.14), 0 4px 14px rgba(0,0,0,0.5); }
+.mixr:focus-visible { outline: none; }
+.mixr:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px rgba(124,147,255,0.6), 0 4px 14px rgba(0,0,0,0.5); }
+.presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.presets button {
+  font: 600 0.85rem var(--font-body); font-variant-numeric: tabular-nums; padding: 9px 4px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+.presets button:hover { color: var(--fg); border-color: var(--line-2); }
+.presets button[aria-pressed="true"] { border-color: var(--save); color: var(--fg); background: rgba(62,230,168,0.12); box-shadow: 0 0 0 1px rgba(62,230,168,0.3) inset; }
+.stepper { display: grid; grid-template-columns: 48px 1fr 48px; gap: 8px; align-items: stretch; }
+.stepper button {
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 12px; cursor: pointer;
+  display: grid; place-items: center; transition: background 0.2s, border-color 0.2s;
+}
+.stepper button:hover { background: var(--surface-2); border-color: var(--save); color: var(--save); }
+.stepper .money input { font-size: 1rem; text-align: right; }
+details { font-size: 0.88rem; }
+details summary { cursor: pointer; font-weight: 600; color: #b8c4ff; display: flex; align-items: center; gap: 8px; list-style: none; }
+details summary::-webkit-details-marker { display: none; }
+details summary .chev { margin-left: auto; transition: transform 0.25s; }
+details[open] summary .chev { transform: rotate(180deg); }
+.calc { margin: 12px 0 0; display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; font-variant-numeric: tabular-nums; background: rgba(0,0,0,0.25); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+.calc dt { color: var(--muted); } .calc dd { margin: 0; text-align: right; }
+.calc .sum { font-weight: 700; color: var(--fg); border-top: 1px solid var(--line); padding-top: 6px; }
+.notes { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.notes li { background: var(--warn-soft); border: 1px solid var(--warn-line); border-radius: 12px; padding: 10px 12px; font-size: 0.85rem; display: flex; gap: 10px; align-items: flex-start; color: #f3e3c3; }
+.notes li .i { color: var(--warn); margin-top: 2px; }
+.total-check { font-size: 0.88rem; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 8px; justify-content: center; }
+.total-check .i { color: var(--save); }
+.yearly { border: 1px dashed var(--line-2); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.yearly-head { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.yearly-head .i { color: var(--accent); }
+.yearly-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.yearly-grid div { display: flex; flex-direction: column; font-size: 0.78rem; color: var(--muted); }
+.yearly-grid b { font-family: var(--font-display); font-size: 1.4rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.yearly-grid .t { color: var(--tax); } .yearly-grid .s { color: var(--save); } .yearly-grid .p { color: var(--spend); }
+
+/* My payments */
+.summary-card {
+  display: flex; flex-direction: row; align-items: center; gap: 16px;
+  background: radial-gradient(120% 120% at 0% 0%, rgba(124,147,255,0.22), transparent 60%), linear-gradient(180deg, rgba(255,255,255,0.055), rgba(255,255,255,0.025));
+}
+.summary-card .chip { width: 54px; height: 54px; border-radius: 16px; }
+.summary-card .chip .i { width: 26px; height: 26px; }
+.summary-card .amt { color: var(--fg); font-size: 2.6rem; text-shadow: 0 0 30px rgba(124,147,255,0.5); }
+.list { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.list button {
+  width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px;
+  display: grid; grid-template-columns: auto 1fr auto; gap: 2px 12px; align-items: center; font-variant-numeric: tabular-nums;
+  transition: border-color 0.2s, background 0.2s, transform 0.12s;
+}
+.list button:hover { border-color: rgba(124,147,255,0.5); background: var(--surface-2); }
+.list button:active { transform: scale(0.99); }
+.list .chip { grid-column: 1; grid-row: 1 / 3; align-self: center; }
+.list strong { grid-column: 2; grid-row: 1; }
+.list .go { color: var(--muted); grid-column: 3; grid-row: 1 / 3; }
+.list .when { color: var(--muted); font-size: 0.82rem; grid-column: 2; grid-row: 2; }
+.list .mini { grid-column: 1 / -1; display: flex; height: 6px; border-radius: 3px; overflow: hidden; gap: 2px; margin-top: 10px; }
+.list .mini span { display: block; height: 100%; }
+.list .three { grid-column: 1 / -1; display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.82rem; color: var(--muted); margin-top: 6px; }
+.list .three b { color: var(--fg); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; }
+.empty { text-align: center; color: var(--muted); padding: 32px 16px; border: 1px dashed var(--line-2); border-radius: 18px; margin: 0; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.empty .chip { width: 54px; height: 54px; border-radius: 16px; }
+.empty .chip .i { width: 26px; height: 26px; }
+.confirm { background: rgba(255,122,133,0.07); border: 1px solid rgba(255,122,133,0.3); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+.confirm p { margin: 0; }
+
+/* Income tracker (My payments) */
+.inc-top { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.inc-top .amt { color: var(--fg); }
+.inc-bar { height: 10px; border-radius: 5px; background: rgba(255,255,255,0.08); overflow: hidden; }
+.inc-bar span { display: block; height: 100%; width: 0; border-radius: 5px; background: var(--grad); box-shadow: 0 0 14px rgba(124,147,255,0.5); transition: width 0.8s cubic-bezier(.2,.8,.2,1); }
+.inc-types { display: flex; flex-wrap: wrap; gap: 8px; }
+.inc-types span { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; font-variant-numeric: tabular-nums; }
+.inc-types b { color: var(--fg); }
+.inc-types .i { width: 14px; height: 14px; color: var(--accent); }
+
+/* Learn */
+.learn { display: flex; flex-direction: column; gap: 10px; }
+.lcard { border: 1px solid var(--line); border-radius: 16px; background: var(--surface); padding: 14px 16px; transition: border-color 0.2s, background 0.2s; }
+.lcard[open] { border-color: rgba(124,147,255,0.45); background: var(--surface-2); }
+.lcard summary { color: var(--fg); font-size: 0.95rem; }
+.lcard summary .i:first-child { color: var(--accent); }
+.lcard p { margin: 10px 0 0; color: #c3cae0; font-size: 0.9rem; line-height: 1.6; }
+.src { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; font-size: 0.8rem; color: #b8c4ff; text-decoration: none; border-bottom: 1px dashed var(--line-2); }
+.src .i { width: 13px; height: 13px; }
+.src + .src { margin-left: 14px; }
+.linkish { background: none; border: 0; padding: 0; margin-top: 10px; font: 600 0.85rem var(--font-body); color: #b8c4ff; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; text-decoration: underline; text-underline-offset: 3px; }
+
+@media (max-width: 420px) {
+  .tabs button { font-size: 0.85rem; padding: 10px 4px; }
+  .tabs button .i { display: none; }
+}
+@media (max-width: 360px) {
+  .demo { grid-template-columns: 1fr; }
+  .demo .ring-mini { width: 120px; margin: 0 auto; }
+  .trust { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .screen, .ring .seg, .btn, .btn .i, .money, .choices label, details summary .chev, .tabs button, .list button { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+
+<!-- Icon set (Lucide-style line icons, drawn inline so the app needs no extra files). -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <linearGradient id="logo-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7c93ff"/><stop offset="1" stop-color="#a774ff"/></linearGradient>
+  </defs>
+  <symbol id="i-landmark" viewBox="0 0 24 24"><path d="M3 22h18M6 18v-7M10 18v-7M14 18v-7M18 18v-7"/><path d="M12 2l8 5H4z"/></symbol>
+  <symbol id="i-piggy" viewBox="0 0 24 24"><path d="M19 5c-1.5 0-2.8 1.4-3 2-3.5-1.5-11-.3-11 5 0 1.8 0 3 2 4.5V20h4v-2h3v2h4v-4c1-.5 1.7-1 2-2h2v-4h-2c0-1-.5-1.5-1-2V5z"/><path d="M2 9v1c0 1.1.9 2 2 2h1"/><path d="M16 11h.01"/></symbol>
+  <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></symbol>
+  <symbol id="i-cap" viewBox="0 0 24 24"><path d="M22 10L12 5 2 10l10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/><path d="M22 10v6"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01z"/></symbol>
+  <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 12h8M12 8v8"/></symbol>
+  <symbol id="i-add" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+  <symbol id="i-receipt" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 17.5v-11"/></symbol>
+  <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></symbol>
+  <symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+  <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-6"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="i-calc" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 6h8M16 14v4M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M8 18h.01M12 18h.01"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+  <symbol id="i-trend" viewBox="0 0 24 24"><path d="M22 7l-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/></symbol>
+  <symbol id="i-bank" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M6 12h.01M18 12h.01"/></symbol>
+  <symbol id="i-scissors" viewBox="0 0 24 24"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4L8.12 15.88M14.47 14.48L20 20M8.12 8.12L12 12"/></symbol>
+  <symbol id="i-repeat" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></symbol>
+  <symbol id="i-layers" viewBox="0 0 24 24"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="M22 17.65l-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="M22 12.65l-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></symbol>
+  <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></symbol>
+  <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9z"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M15 3h6v6M10 14L21 3M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></symbol>
+</svg>
+
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <button type="button" class="logo-btn" id="logo" aria-label="SetAside, back to start">
+        <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+          <rect width="32" height="32" rx="9" fill="url(#logo-g)"/>
+          <rect x="7" y="15" width="5" height="10" rx="2" fill="#ffffff"/>
+          <rect x="13.5" y="9" width="5" height="16" rx="2" fill="#3ee6a8"/>
+          <rect x="20" y="12" width="5" height="13" rx="2" fill="#ffb547"/>
+        </svg>
+        <h1>SetAside</h1>
+      </button>
+      <span class="pill"><svg class="i" aria-hidden="true"><use href="#i-lock"/></svg>On this device</span>
+    </div>
+    <div class="tabs" role="tablist" id="tabs">
+      <button type="button" role="tab" id="tab-new" aria-selected="true"><svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>New payment</button>
+      <button type="button" role="tab" id="tab-list" aria-selected="false"><svg class="i" aria-hidden="true"><use href="#i-receipt"/></svg>My payments</button>
+      <button type="button" role="tab" id="tab-learn" aria-selected="false"><svg class="i" aria-hidden="true"><use href="#i-book"/></svg>Learn</button>
+    </div>
+  </header>
+
+  <!-- Screen 0: Welcome (the hook) -->
+  <section class="screen" id="screen-welcome" hidden>
+    <div class="hero">
+      <span class="pill" style="align-self:flex-start"><svg class="i" aria-hidden="true"><use href="#i-zap"/></svg>For athletes with NIL or revenue-share money</span>
+      <h2>Got<br>paid?</h2>
+      <p class="lede">Before you spend it, see how much to set aside for taxes, savings and spending.</p>
+      <div class="demo" aria-label="Example split of a $12,000 payment">
+        <svg class="ring ring-mini" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="track" cx="60" cy="60" r="50"/>
+          <circle class="seg tax" id="demo-tax" cx="60" cy="60" r="50"/>
+          <circle class="seg save" id="demo-save" cx="60" cy="60" r="50"/>
+          <circle class="seg spend" id="demo-spend" cx="60" cy="60" r="50"/>
+        </svg>
+        <div class="demo-legend">
+          <p class="demo-label">Example: $12,000 payment</p>
+          <div class="row"><span class="chip tax"><svg class="i" aria-hidden="true"><use href="#i-landmark"/></svg></span>Taxes<b id="demo-amt-tax"></b></div>
+          <div class="row"><span class="chip save"><svg class="i" aria-hidden="true"><use href="#i-piggy"/></svg></span>Savings<b id="demo-amt-save"></b></div>
+          <div class="row"><span class="chip spend"><svg class="i" aria-hidden="true"><use href="#i-wallet"/></svg></span>Spending<b id="demo-amt-spend"></b></div>
+        </div>
+      </div>
+      <button class="btn" type="button" id="start">Start a split <svg class="i i-go" aria-hidden="true"><use href="#i-arrow-right"/></svg></button>
+    </div>
+
+    <div class="card">
+      <ol class="steps">
+        <li><span class="num">1</span><div><strong>Type the payment</strong><span class="sub">What landed in your account.</span></div><span class="chip soft"><svg class="i" aria-hidden="true"><use href="#i-bank"/></svg></span></li>
+        <li><span class="num">2</span><div><strong>Answer a few quick questions</strong><span class="sub">How is it paid? Was tax taken out? What kind of payment?</span></div><span class="chip soft"><svg class="i" aria-hidden="true"><use href="#i-help"/></svg></span></li>
+        <li><span class="num">3</span><div><strong>See your split</strong><span class="sub">And exactly how the tax was figured.</span></div><span class="chip soft"><svg class="i" aria-hidden="true"><use href="#i-calc"/></svg></span></li>
+      </ol>
+    </div>
+
+    <ul class="trust">
+      <li><svg class="i" aria-hidden="true"><use href="#i-shield"/></svg><span>Free. No account. Your payments stay on this device.</span></li>
+      <li><svg class="i" aria-hidden="true"><use href="#i-info"/></svg><span>Estimate based on 2025 federal tax rules. Not tax advice.</span></li>
+    </ul>
+  </section>
+
+  <!-- Screen 1: New payment -->
+  <section class="screen" id="screen-new" hidden>
+    <h2>New payment</h2>
+    <p class="example" id="example-note"><svg class="i" aria-hidden="true"><use href="#i-info"/></svg><span>Example numbers are filled in so you can see how it works. Replace them with your own.</span></p>
+    <form class="card" id="pay-form" novalidate>
+      <fieldset class="field">
+        <legend><svg class="i" aria-hidden="true"><use href="#i-repeat"/></svg>How is this money paid?</legend>
+        <div class="choices">
+          <label><input type="radio" name="freq" value="once" id="fq-once" checked><svg class="i" aria-hidden="true"><use href="#i-bank"/></svg> One payment</label>
+          <label><input type="radio" name="freq" value="monthly" id="fq-monthly"><svg class="i" aria-hidden="true"><use href="#i-repeat"/></svg> Every month, same amount</label>
+          <label><input type="radio" name="freq" value="year" id="fq-year"><svg class="i" aria-hidden="true"><use href="#i-layers"/></svg> My whole year's income at once</label>
+        </div>
+      </fieldset>
+
+      <div class="field">
+        <label for="received"><svg class="i" aria-hidden="true"><use href="#i-bank"/></svg><span id="received-label">Amount you received</span></label>
+        <div class="money"><span>$</span><input id="received" inputmode="decimal" autocomplete="off" value="12,000"></div>
+        <p class="hint" id="received-hint">What actually landed in your account.</p>
+      </div>
+
+      <fieldset class="field">
+        <legend><svg class="i" aria-hidden="true"><use href="#i-scissors"/></svg>Was any tax already taken out of this payment?</legend>
+        <div class="choices row">
+          <label><input type="radio" name="withheld" value="no" id="wh-no"> No</label>
+          <label><input type="radio" name="withheld" value="yes" id="wh-yes"> Yes</label>
+          <label><input type="radio" name="withheld" value="unsure" id="wh-unsure" checked> Not sure</label>
+        </div>
+        <div class="field" id="withheld-amt-field" hidden>
+          <label for="withheld-amt">How much was taken out?</label>
+          <div class="money"><span>$</span><input id="withheld-amt" inputmode="decimal" autocomplete="off"></div>
+          <p class="hint">Look on your pay stub or the deposit details.</p>
+        </div>
+      </fieldset>
+
+      <fieldset class="field">
+        <legend><svg class="i" aria-hidden="true"><use href="#i-receipt"/></svg>What kind of payment?</legend>
+        <div class="choices">
+          <label><input type="radio" name="ptype" value="revshare" id="pt-rev"><svg class="i" aria-hidden="true"><use href="#i-cap"/></svg> School revenue share</label>
+          <label><input type="radio" name="ptype" value="nil" id="pt-nil" checked><svg class="i" aria-hidden="true"><use href="#i-star"/></svg> NIL deal or bonus</label>
+          <label><input type="radio" name="ptype" value="unsure" id="pt-unsure"><svg class="i" aria-hidden="true"><use href="#i-help"/></svg> Not sure</label>
+        </div>
+      </fieldset>
+
+      <div class="field">
+        <label for="pdate"><svg class="i" aria-hidden="true"><use href="#i-calendar"/></svg>Date received</label>
+        <input type="date" id="pdate">
+      </div>
+
+      <div class="field" id="expected-field">
+        <label for="expected"><svg class="i" aria-hidden="true"><use href="#i-trend"/></svg>Expected total income this year</label>
+        <div class="money"><span>$</span><input id="expected" inputmode="decimal" autocomplete="off" value="30,000"></div>
+        <p class="hint" id="expected-hint">All your NIL and school money for the year, including this payment. A rough guess is fine.</p>
+      </div>
+
+      <p class="error" id="form-error" role="alert" hidden></p>
+      <button class="btn" type="submit" id="see-split">See my split <svg class="i i-go" aria-hidden="true"><use href="#i-arrow-right"/></svg></button>
+    </form>
+  </section>
+
+  <!-- Screen 2: Your split -->
+  <section class="screen" id="screen-split" hidden>
+    <h2 id="split-title">Your split</h2>
+    <div class="card">
+      <div class="ring-wrap">
+        <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="track" cx="60" cy="60" r="50"/>
+          <circle class="seg tax" id="ring-tax" cx="60" cy="60" r="50"/>
+          <circle class="seg save" id="ring-save" cx="60" cy="60" r="50"/>
+          <circle class="seg spend" id="ring-spend" cx="60" cy="60" r="50"/>
+        </svg>
+        <div class="ring-center">
+          <span class="k" id="s-kind">Payment received</span>
+          <strong id="s-received"></strong>
+          <span class="d" id="s-date"></span>
+          <span class="d" id="s-type"></span>
+        </div>
+      </div>
+
+      <div class="bucket tax">
+        <div class="bucket-head">
+          <span class="bucket-title"><span class="chip tax"><svg class="i" aria-hidden="true"><use href="#i-landmark"/></svg></span><span><span class="bucket-name">Taxes (set aside)</span><span class="bucket-pct" id="p-tax"></span></span></span>
+          <span class="amt" id="s-tax"></span>
+        </div>
+        <details id="how">
+          <summary><svg class="i" aria-hidden="true"><use href="#i-calc"/></svg>How was this figured?<svg class="i chev" aria-hidden="true"><use href="#i-chevron-down"/></svg></summary>
+          <dl class="calc" id="calc"></dl>
+          <p class="fine" style="margin-top:10px">Uses 2025 US federal tax rules for a single filer who is not claimed as a dependent. No state tax. The self-employment tax steps have not yet been checked by a tax professional.</p>
+          <button type="button" class="linkish" data-learn="learn-se"><svg class="i" aria-hidden="true"><use href="#i-book"/></svg>What is self-employment tax?</button>
+          <button type="button" class="linkish" data-learn="learn-brackets" style="margin-left:14px"><svg class="i" aria-hidden="true"><use href="#i-book"/></svg>How do tax brackets work?</button>
+        </details>
+      </div>
+
+      <div class="mix" id="mix">
+        <div class="mix-top">
+          <span class="mix-title"><svg class="i" aria-hidden="true"><use href="#i-sliders"/></svg>Choose your split</span>
+          <span class="mix-left" id="mix-left"></span>
+        </div>
+        <div class="mix-labels" aria-hidden="true"><span class="s">Savings<b id="mix-save"></b></span><span class="p">Spending<b id="mix-spend"></b></span></div>
+        <input type="range" class="mixr" id="mix-range" min="0" max="100" step="5" aria-label="Percent of what's left after taxes that goes to savings">
+        <div class="presets" role="group" aria-label="Quick splits, savings / spending">
+          <button type="button" data-p="50" aria-pressed="false">50/50</button>
+          <button type="button" data-p="60" aria-pressed="false">60/40</button>
+          <button type="button" data-p="70" aria-pressed="false">70/30</button>
+          <button type="button" data-p="80" aria-pressed="false">80/20</button>
+        </div>
+        <p class="hint">Taxes stay set aside. You choose how the rest is split. When you save, your next payment starts with this split.</p>
+      </div>
+
+      <div class="bucket save">
+        <div class="bucket-head">
+          <span class="bucket-title"><span class="chip save"><svg class="i" aria-hidden="true"><use href="#i-piggy"/></svg></span><span><span class="bucket-name">Savings</span><span class="bucket-pct" id="p-save"></span></span></span>
+          <span class="amt" id="s-save"></span>
+        </div>
+        <div class="stepper" id="save-stepper">
+          <button type="button" id="save-minus" aria-label="Move $100 from savings to spending"><svg class="i" aria-hidden="true"><use href="#i-minus"/></svg></button>
+          <div class="money"><span>$</span><input id="save-input" inputmode="decimal" aria-label="Savings amount"></div>
+          <button type="button" id="save-plus" aria-label="Move $100 from spending to savings"><svg class="i" aria-hidden="true"><use href="#i-add"/></svg></button>
+        </div>
+      </div>
+
+      <div class="bucket spend">
+        <div class="bucket-head">
+          <span class="bucket-title"><span class="chip spend"><svg class="i" aria-hidden="true"><use href="#i-wallet"/></svg></span><span><span class="bucket-name">Spending cash</span><span class="bucket-pct" id="p-spend"></span></span></span>
+          <span class="amt" id="s-spend"></span>
+        </div>
+        <p class="hint" id="spend-hint">Whatever is left after taxes and savings.</p>
+      </div>
+
+      <div class="total-check" id="s-total"></div>
+      <div class="yearly" id="s-yearly" hidden>
+        <div class="yearly-head"><svg class="i" aria-hidden="true"><use href="#i-repeat"/></svg>Over 12 months</div>
+        <div class="yearly-grid">
+          <div><span>Taxes</span><b class="t" id="y-tax"></b></div>
+          <div><span>Savings</span><b class="s" id="y-save"></b></div>
+          <div><span>Spending</span><b class="p" id="y-spend"></b></div>
+        </div>
+      </div>
+      <ul class="notes" id="notes"></ul>
+      <p class="fine">Estimate based on 2025 federal tax rules. Not tax advice. Check with a tax professional. The savings and spending split starts at 70/30, or at the split you last saved. It's a starting point you can change, not a recommendation.</p>
+    </div>
+
+    <div class="btn-row" id="split-actions-new">
+      <button class="btn" type="button" id="save-split"><svg class="i" aria-hidden="true"><use href="#i-check"/></svg>Save split</button>
+      <button class="btn secondary" type="button" id="back-new"><svg class="i" aria-hidden="true"><use href="#i-arrow-left"/></svg>Back</button>
+    </div>
+    <div class="btn-row" id="split-actions-saved" hidden>
+      <button class="btn secondary" type="button" id="back-list"><svg class="i" aria-hidden="true"><use href="#i-arrow-left"/></svg>Back to my payments</button>
+      <button class="btn danger" type="button" id="delete-start"><svg class="i" aria-hidden="true"><use href="#i-trash"/></svg>Delete payment</button>
+    </div>
+    <div class="confirm" id="delete-confirm" hidden>
+      <p>Delete this payment from this device? This can't be undone.</p>
+      <div class="btn-row">
+        <button class="btn danger" type="button" id="delete-yes">Delete</button>
+        <button class="btn secondary" type="button" id="delete-no">Keep it</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Screen 3: My payments -->
+  <section class="screen" id="screen-list" hidden>
+    <h2>My payments</h2>
+    <div class="card summary-card">
+      <span class="chip tax"><svg class="i" aria-hidden="true"><use href="#i-landmark"/></svg></span>
+      <div>
+        <div class="hint">Tax set aside in <span id="this-year"></span></div>
+        <div class="amt" id="year-tax">$0</div>
+        <p class="hint" id="year-count"></p>
+      </div>
+    </div>
+    <div class="card" id="income-card" hidden>
+      <div class="yearly-head"><svg class="i" aria-hidden="true"><use href="#i-trend"/></svg>Income in <span id="inc-year"></span></div>
+      <div class="inc-top"><span class="amt" id="inc-sofar">$0</span><span class="hint" id="inc-of"></span></div>
+      <div class="inc-bar" id="inc-bar-wrap"><span id="inc-fill"></span></div>
+      <div class="inc-types" id="inc-types"></div>
+      <p class="hint" id="inc-note"></p>
+    </div>
+    <p class="example" id="saved-msg" role="status" hidden></p>
+    <ul class="list" id="pay-list"></ul>
+    <div class="empty" id="empty" hidden>
+      <span class="chip soft"><svg class="i" aria-hidden="true"><use href="#i-inbox"/></svg></span>
+      <span>No saved payments yet. Go to New payment, enter a payment and tap Save split.</span>
+    </div>
+    <p class="fine"><svg class="i" aria-hidden="true"><use href="#i-lock"/></svg> Your payments are saved only in this browser on this device. There is no account and nothing is sent anywhere. If you clear your browser data, they are gone and you would need to enter them again.</p>
+  </section>
+
+  <!-- Screen 4: Learn (short answers from IRS pages) -->
+  <section class="screen" id="screen-learn" hidden>
+    <h2>Learn the basics</h2>
+    <p class="hint">Short answers to common questions about taxes on NIL and revenue-share money, each with a link to the IRS page it comes from.</p>
+    <div class="learn">
+      <details class="lcard" id="learn-taxable">
+        <summary><svg class="i" aria-hidden="true"><use href="#i-help"/></svg>Is NIL and revenue-share money taxable?<svg class="i chev" aria-hidden="true"><use href="#i-chevron-down"/></svg></summary>
+        <p>Generally, yes. The IRS says all income from NIL activities is generally taxable, and it lists revenue-sharing payments from a college or university as NIL income. You have to report it even if the payer doesn't send you a Form 1099.</p>
+        <a class="src" href="https://www.irs.gov/nil" target="_blank" rel="noopener">IRS: What is NIL income? <svg class="i" aria-hidden="true"><use href="#i-external"/></svg></a>
+      </details>
+      <details class="lcard" id="learn-withheld">
+        <summary><svg class="i" aria-hidden="true"><use href="#i-scissors"/></svg>Why wasn't any tax taken out?<svg class="i chev" aria-hidden="true"><use href="#i-chevron-down"/></svg></summary>
+        <p>If you're paid as self-employed, the IRS says there's typically no tax withheld from NIL income. Setting the tax part aside is then up to you.</p>
+        <p>If your school treats you as an employee, tax is taken out of your pay and you get a Form W-2. Not sure which applies to you? Check your pay stub or deposit details, or ask your athletic department.</p>
+        <a class="src" href="https://www.irs.gov/nil" target="_blank" rel="noopener">IRS: What is NIL income? <svg class="i" aria-hidden="true"><use href="#i-external"/></svg></a>
+      </details>
+      <details class="lcard" id="learn-se">
+        <summary><svg class="i" aria-hidden="true"><use href="#i-landmark"/></svg>What is self-employment tax?<svg class="i chev" aria-hidden="true"><use href="#i-chevron-down"/></svg></summary>
+        <p>It's Social Security and Medicare tax for people who work for themselves: 15.3% in total (12.4% Social Security and 2.9% Medicare), figured on Schedule SE. The IRS says payments for personal services carry it, but royalties and image licenses don't.</p>
+        <p>Half of it can be deducted when you figure your adjusted gross income. That's why SetAside subtracts half of it before working out income tax.</p>
+        <a class="src" href="https://www.irs.gov/businesses/small-businesses-self-employed/self-employment-tax-social-security-and-medicare-taxes" target="_blank" rel="noopener">IRS: Self-employment tax <svg class="i" aria-hidden="true"><use href="#i-external"/></svg></a><a class="src" href="https://www.irs.gov/nil" target="_blank" rel="noopener">IRS: What is NIL income? <svg class="i" aria-hidden="true"><use href="#i-external"/></svg></a>
+      </details>
+      <details class="lcard" id="learn-brackets">
+        <summary><svg class="i" aria-hidden="true"><use href="#i-layers"/></svg>How do tax brackets work?<svg class="i chev" aria-hidden="true"><use href="#i-chevron-down"/></svg></summary>
+        <p>Income tax goes up in steps. Each rate applies only to the part of your income inside that bracket, not to all of it.</p>
+        <p>For a single filer in 2025, the first $11,925 of taxable income is taxed at 10%, the part up to $48,475 at 12%, up to $103,350 at 22%, then 24%, 32%, 35% and 37% above $626,350. Taxable income is what's left after the standard deduction, which is $15,750 for a single filer in 2025.</p>
+        <a class="src" href="https://www.irs.gov/filing/federal-income-tax-rates-and-brackets" target="_blank" rel="noopener">IRS: Tax rates and brackets <svg class="i" aria-hidden="true"><use href="#i-external"/></svg></a><a class="src" href="https://www.irs.gov/credits-and-deductions-for-individuals" target="_blank" rel="noopener">IRS: Standard deduction <svg class="i" aria-hidden="true"><use href="#i-external"/></svg></a>
+      </details>
+      <details class="lcard" id="learn-estimated">
+        <summary><svg class="i" aria-hidden="true"><use href="#i-calendar"/></svg>What are estimated tax payments?<svg class="i chev" aria-hidden="true"><use href="#i-chevron-down"/></svg></summary>
+        <p>When no tax is withheld, the IRS says you may need to pay estimated tax during the year with Form 1040-ES. Doing so may help you avoid a large tax bill and related penalties.</p>
+        <p>SetAside doesn't track payment deadlines or pay the IRS for you. It shows how much to keep aside so the money is there when you pay.</p>
+        <a class="src" href="https://www.irs.gov/nil" target="_blank" rel="noopener">IRS: What is NIL income? <svg class="i" aria-hidden="true"><use href="#i-external"/></svg></a>
+      </details>
+      <details class="lcard" id="learn-yearly">
+        <summary><svg class="i" aria-hidden="true"><use href="#i-trend"/></svg>Why does SetAside ask for my income for the whole year?<svg class="i chev" aria-hidden="true"><use href="#i-chevron-down"/></svg></summary>
+        <p>Because your tax rate depends on your total income for the year, not on one payment. SetAside estimates your tax for the year, turns it into a share of your income, and sets aside that share of each payment.</p>
+        <p>So a better yearly guess gives a better estimate. My payments shows your income so far, and the next payment you enter starts with your last guess.</p>
+      </details>
+    </div>
+    <p class="fine"><svg class="i" aria-hidden="true"><use href="#i-info"/></svg> SetAside uses 2025 federal figures. This is general information, not tax advice. Check with a tax professional about your own situation.</p>
+  </section>
+</div>
+
+<script>
+(function () {
+  // ---- Tax figures (2025, single filer). Verified items are marked; the rest need a tax professional. ----
+  var TAX = {
+    year: 2025,
+    standardDeduction: 15750,               // verified: IRS, single, 2025
+    brackets: [                             // verified: IRS 2025 single brackets
+      [11925, 0.10], [48475, 0.12], [103350, 0.22], [197300, 0.24],
+      [250525, 0.32], [626350, 0.35], [Infinity, 0.37]
+    ],
+    seRate: { socialSecurity: 0.124, medicare: 0.029 }, // verified: IRS, 15.3% total
+    seNetFactor: 0.9235,                    // NOT verified: net earnings share used on Schedule SE
+    ssWageBase: 176100                      // NOT verified: 2025 Social Security wage base
+  };
+  var SAVE_SHARE = 0.70;                    // decided: 70% savings / 30% spending after taxes
+  var STORE_KEY = "setaside.payments.v1";
+  var SHARE_KEY = "setaside.saveShare.v1";  // the savings share the athlete last saved (0 to 1)
+  function loadShare() {
+    try { var v = parseFloat(localStorage.getItem(SHARE_KEY)); return v >= 0 && v <= 1 ? v : SAVE_SHARE; } catch (e) { return SAVE_SHARE; }
+  }
+  function storeShare(v) { try { localStorage.setItem(SHARE_KEY, String(v)); } catch (e) {} }
+
+  function incomeTaxOn(taxable) {
+    var tax = 0, lower = 0;
+    for (var i = 0; i < TAX.brackets.length; i++) {
+      var upper = TAX.brackets[i][0], rate = TAX.brackets[i][1];
+      if (taxable > lower) tax += (Math.min(taxable, upper) - lower) * rate;
+      lower = upper;
+    }
+    return tax;
+  }
+
+  // Annual federal tax estimate on the expected yearly income (all treated as self-employment income).
+  function annualTax(income) {
+    var net = income * TAX.seNetFactor;
+    var seTax = TAX.seRate.socialSecurity * Math.min(net, TAX.ssWageBase) + TAX.seRate.medicare * net;
+    var agi = Math.max(0, income - seTax / 2);
+    var taxable = Math.max(0, agi - TAX.standardDeduction);
+    var incomeTax = incomeTaxOn(taxable);
+    return { seTax: seTax, agi: agi, taxable: taxable, incomeTax: incomeTax, total: seTax + incomeTax };
+  }
+
+  // received: what landed; withheld: tax already taken out; expected: yearly income guess.
+  function computeSplit(received, withheld, expected, saveShare) {
+    if (!(saveShare >= 0 && saveShare <= 1)) saveShare = SAVE_SHARE;
+    var gross = received + withheld;
+    var yearIncome = Math.max(expected || 0, gross);
+    var year = annualTax(yearIncome);
+    var rate = yearIncome > 0 ? year.total / yearIncome : 0;
+    var estimate = Math.round(rate * gross);
+    var tax = Math.max(0, estimate - Math.round(withheld));
+    tax = Math.min(tax, Math.round(received));
+    var rest = Math.round(received) - tax;
+    var savings = Math.round(rest * saveShare);
+    return {
+      gross: gross, yearIncome: yearIncome, expectedRaised: !(expected >= gross), year: year,
+      rate: rate, estimate: estimate, tax: tax, rest: rest, savings: savings, spending: rest - savings
+    };
+  }
+  window.SetAsideCalc = { computeSplit: computeSplit, annualTax: annualTax };
+
+  // ---- Helpers ----
+  function $(id) { return document.getElementById(id); }
+  function money(n) { return (n < 0 ? "−$" : "$") + Math.abs(Math.round(n)).toLocaleString("en-US"); }
+  function parseMoney(s) {
+    if (s == null) return NaN;
+    var t = String(s).replace(/[$,\s]/g, "");
+    if (t === "") return NaN;
+    var n = Number(t);
+    return isFinite(n) ? n : NaN;
+  }
+  function radio(name) { var el = document.querySelector('input[name="' + name + '"]:checked'); return el ? el.value : null; }
+  function todayISO() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
+  function fmtDate(iso) {
+    if (!iso) return "No date";
+    var p = iso.split("-"); var d = new Date(+p[0], +p[1] - 1, +p[2]);
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  }
+  function pctOf(n, total) { return total > 0 ? Math.round(n / total * 100) + "% of payment" : ""; }
+  function icon(name) { return '<svg class="i" aria-hidden="true"><use href="#i-' + name + '"/></svg>'; }
+  // Sets a message element to an icon plus plain text (text is never parsed as HTML).
+  function iconText(el, name, text) { el.innerHTML = icon(name) + "<span></span>"; el.lastChild.textContent = text; }
+  var TYPE_LABEL = { revshare: "School revenue share", nil: "NIL deal or bonus", unsure: "Not sure" };
+  var TYPE_ICON = { revshare: "cap", nil: "star", unsure: "help" };
+  var FREQ_KIND = { once: "Payment received", monthly: "Each month", year: "Year's total" };
+  var FREQ_TAG = { once: "", monthly: " · Monthly", year: " · Whole year" };
+  var REDUCE = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  function loadPayments() {
+    try { var raw = localStorage.getItem(STORE_KEY); var arr = raw ? JSON.parse(raw) : []; return Array.isArray(arr) ? arr : []; }
+    catch (e) { return []; }
+  }
+  function storePayments(arr) {
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(arr)); return true; } catch (e) { return false; }
+  }
+
+  // ---- Animated numbers ----
+  function setAmt(el, n) { el._run = (el._run || 0) + 1; el.textContent = money(n); }
+  function countUp(el, to) {
+    var run = el._run = (el._run || 0) + 1;
+    if (REDUCE) { el.textContent = money(to); return; }
+    var t0 = performance.now(), dur = 900;
+    function step(t) {
+      if (el._run !== run) return;
+      var k = Math.min(1, Math.max(0, (t - t0) / dur)), e = 1 - Math.pow(1 - k, 3);
+      el.textContent = money(to * e);
+      if (k < 1) requestAnimationFrame(step);
+    }
+    el.textContent = money(0);
+    requestAnimationFrame(step);
+  }
+
+  // ---- Ring chart ----
+  var CIRC = 2 * Math.PI * 50, GAP = 2.2;
+  function setRing(ids, parts, total) {
+    var start = 0;
+    ids.forEach(function (id, i) {
+      var len = total > 0 ? parts[i] / total * CIRC : 0;
+      var vis = len > GAP * 2 ? len - GAP : len;
+      var el = $(id);
+      el.style.strokeDasharray = vis + " " + CIRC;
+      el.style.strokeDashoffset = String(-start);
+      start += len;
+    });
+  }
+  // Sweep the ring in from empty each time a screen opens.
+  function growRing(ids, parts, total) {
+    if (REDUCE) { setRing(ids, parts, total); return; }
+    ids.forEach(function (id) { var el = $(id); el.style.strokeDasharray = "0 " + CIRC; el.style.strokeDashoffset = "0"; });
+    void $(ids[0]).getBoundingClientRect();
+    requestAnimationFrame(function () { requestAnimationFrame(function () { setRing(ids, parts, total); }); });
+  }
+  var SPLIT_RING = ["ring-tax", "ring-save", "ring-spend"];
+
+  // ---- State ----
+  var current = null;   // the payment shown on the split screen
+  var viewingSaved = false;
+  var startedAt = null; // when the New payment screen opened, to show how long a split took (the under-3-minutes test)
+
+  // ---- Screens ----
+  function show(which) {
+    ["welcome", "new", "split", "list", "learn"].forEach(function (s) { $("screen-" + s).hidden = which !== s; });
+    $("tabs").hidden = which === "welcome";
+    $("tab-new").setAttribute("aria-selected", String(which === "new" || (which === "split" && !viewingSaved)));
+    $("tab-list").setAttribute("aria-selected", String(which === "list" || (which === "split" && viewingSaved)));
+    $("tab-learn").setAttribute("aria-selected", String(which === "learn"));
+    if (which === "new" && startedAt === null) startedAt = Date.now();
+    if (which === "new") prefillExpected();
+    if (which === "list") renderList(true);
+    if (which === "split" && current) {
+      growRing(SPLIT_RING, [current.tax, current.savings, current.spending], current.received);
+      countUp($("s-received"), current.received);
+      countUp($("s-tax"), current.tax);
+      countUp($("s-save"), current.savings);
+      countUp($("s-spend"), current.spending);
+    }
+    if (which === "welcome") {
+      // Example split from the filled-in example numbers.
+      var ex = computeSplit(12000, 0, 30000);
+      growRing(["demo-tax", "demo-save", "demo-spend"], [ex.tax, ex.savings, ex.spending], 12000);
+      countUp($("demo-amt-tax"), ex.tax);
+      countUp($("demo-amt-save"), ex.savings);
+      countUp($("demo-amt-spend"), ex.spending);
+    }
+    window.scrollTo(0, 0);
+  }
+
+  // ---- Income tracker helpers ----
+  // Income from saved payments in a calendar year, before any tax was taken out.
+  function yearPayments(yr) { return loadPayments().filter(function (p) { return (p.date || "").slice(0, 4) === yr; }); }
+  function grossOf(p) { return (p.received || 0) + (p.withheld || 0); }
+  function incomeIn(yr) { return yearPayments(yr).reduce(function (s, p) { return s + grossOf(p); }, 0); }
+  // The yearly income guess from the most recently saved payment in that year (0 if none).
+  function lastExpected(yr) {
+    var list = yearPayments(yr).filter(function (p) { return p.expected > 0; });
+    return list.length ? list[list.length - 1].expected : 0;
+  }
+
+  // ---- New payment form ----
+  $("pdate").value = todayISO();
+  // Start the yearly guess from the last saved payment, so athletes don't retype it each time.
+  function prefillExpected() {
+    if (expectedTouched || radio("freq") === "monthly") return;
+    var last = lastExpected(($("pdate").value || todayISO()).slice(0, 4));
+    if (!(last > 0)) return;
+    $("expected").value = Math.round(last).toLocaleString("en-US");
+    $("expected-hint").textContent = "Filled in from your last saved payment. Change it if your guess has changed.";
+  }
+  function syncWithheld() { $("withheld-amt-field").hidden = radio("withheld") !== "yes"; }
+  document.querySelectorAll('input[name="withheld"]').forEach(function (r) { r.addEventListener("change", syncWithheld); });
+  ["received", "expected"].forEach(function (id) {
+    $(id).addEventListener("input", function () { $("example-note").hidden = true; });
+  });
+
+  // How the money is paid: one payment, every month (same amount), or the whole year at once.
+  var expectedTouched = false;   // once the athlete types a yearly guess, never overwrite it
+  $("expected").addEventListener("input", function () { expectedTouched = true; });
+  function fillMonthlyExpected() {
+    if (radio("freq") !== "monthly" || expectedTouched) return;
+    var m = parseMoney($("received").value);
+    if (m > 0) $("expected").value = Math.round(m * 12).toLocaleString("en-US");
+  }
+  function syncFreq() {
+    var f = radio("freq");
+    $("received-label").textContent = f === "monthly" ? "Amount you get each month" : f === "year" ? "Your total for the year" : "Amount you received";
+    $("received-hint").textContent = f === "monthly" ? "What lands in your account each month." : f === "year" ? "All your NIL and school money for the year, paid at once." : "What actually landed in your account.";
+    $("expected-field").hidden = f === "year";
+    $("expected-hint").textContent = f === "monthly"
+      ? "We filled in 12 × your monthly amount. Change it if you get other money too."
+      : "All your NIL and school money for the year, including this payment. A rough guess is fine.";
+    fillMonthlyExpected();
+  }
+  document.querySelectorAll('input[name="freq"]').forEach(function (r) { r.addEventListener("change", syncFreq); });
+  $("received").addEventListener("input", fillMonthlyExpected);
+
+  $("pay-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var err = $("form-error"); err.hidden = true;
+    var received = parseMoney($("received").value);
+    var whChoice = radio("withheld");
+    var withheld = 0;
+    if (!(received > 0)) { err.textContent = "Enter the amount you received, for example 12,000."; err.hidden = false; $("received").focus(); return; }
+    if (whChoice === "yes") {
+      withheld = parseMoney($("withheld-amt").value);
+      if (!(withheld >= 0)) { err.textContent = "Enter how much tax was taken out, or choose Not sure."; err.hidden = false; $("withheld-amt").focus(); return; }
+    }
+    var freq = radio("freq") || "once";
+    var expected = parseMoney($("expected").value);
+    var gross = received + withheld;
+    var monthlyRaised = false;
+    if (freq === "year") expected = gross;                  // the payment is the whole year
+    else if (freq === "monthly") {
+      // A year of monthly pay is at least 12 x this payment; a blank or lower guess would make the tax too low.
+      if (!(expected >= gross * 12)) { monthlyRaised = !isNaN(expected) && expected > 0; expected = gross * 12; }
+    } else if (!(expected > 0)) {
+      err.textContent = "Enter your expected total income for the year. A rough guess is fine.";
+      err.hidden = false; $("expected").focus(); return;
+    }
+    // The year's income is at least what's already saved for that year plus this payment.
+    var soFarRaised = false;
+    if (freq === "once") {
+      var soFar = incomeIn(($("pdate").value || todayISO()).slice(0, 4));
+      if (soFar > 0 && expected < soFar + gross) { expected = soFar + gross; soFarRaised = true; }
+    }
+
+    var r = computeSplit(received, withheld, expected, loadShare());
+    current = {
+      id: "p" + Date.now(), freq: freq, date: $("pdate").value, received: Math.round(received), withheldChoice: whChoice,
+      withheld: Math.round(withheld), type: radio("ptype"), expected: Math.round(expected), monthlyRaised: monthlyRaised, soFarRaised: soFarRaised,
+      tax: r.tax, savings: r.savings, spending: r.spending
+    };
+    viewingSaved = false;
+    renderSplit();
+    show("split");
+  });
+
+  // ---- Split screen ----
+  function renderSplit() {
+    var p = current;
+    var r = computeSplit(p.received, p.withheld, p.expected);
+    $("split-title").textContent = viewingSaved ? "Saved split" : "Your split";
+    var freq = p.freq || "once";
+    $("s-kind").textContent = FREQ_KIND[freq];
+    $("s-date").textContent = fmtDate(p.date);
+    // Monthly: show what the same split adds up to over 12 months.
+    $("s-yearly").hidden = freq !== "monthly";
+    if (freq === "monthly") {
+      $("y-tax").textContent = money(p.tax * 12);
+      $("y-save").textContent = money(p.savings * 12);
+      $("y-spend").textContent = money(p.spending * 12);
+    }
+    $("s-type").textContent = TYPE_LABEL[p.type] || "";
+    setAmt($("s-received"), p.received);
+    setAmt($("s-tax"), p.tax);
+    setAmt($("s-save"), p.savings);
+    setAmt($("s-spend"), p.spending);
+    $("p-tax").textContent = pctOf(p.tax, p.received);
+    $("p-save").textContent = pctOf(p.savings, p.received);
+    $("p-spend").textContent = pctOf(p.spending, p.received);
+    $("save-input").value = Math.round(p.savings).toLocaleString("en-US");
+    setRing(SPLIT_RING, [p.tax, p.savings, p.spending], p.received);
+    var sum = p.tax + p.savings + p.spending;
+    if (sum === p.received) iconText($("s-total"), "check-circle", "Total: " + money(sum) + " (adds up to the payment)");
+    else $("s-total").textContent = "Total: " + money(sum);
+
+    // Split slider: the share of what's left after taxes that goes to savings.
+    var rest = p.received - p.tax;
+    var pct = rest > 0 ? Math.round(p.savings / rest * 100) : 0;
+    $("mix-left").textContent = money(rest) + " left after taxes";
+    $("mix-save").textContent = pct + "%";
+    $("mix-spend").textContent = (100 - pct) + "%";
+    var rng = $("mix-range");
+    rng.value = pct; rng.style.setProperty("--p", pct + "%");
+    rng.setAttribute("aria-valuetext", pct + "% savings, " + (100 - pct) + "% spending");
+    rng.disabled = rest <= 0;
+    document.querySelectorAll(".presets button").forEach(function (b) { b.setAttribute("aria-pressed", String(+b.dataset.p === pct)); });
+
+    // The split can be changed only before saving.
+    $("mix").hidden = viewingSaved;
+    $("save-stepper").hidden = viewingSaved;
+    $("spend-hint").hidden = viewingSaved;
+    $("split-actions-new").hidden = viewingSaved;
+    $("split-actions-saved").hidden = !viewingSaved;
+    $("delete-confirm").hidden = true;
+
+    // How it was figured
+    var rows = [
+      ["Expected income this year", money(r.yearIncome)],
+      ["Self-employment tax for the year", money(r.year.seTax)],
+      ["Income after half of that and the standard deduction ($15,750)", money(r.year.taxable)],
+      ["Federal income tax for the year", money(r.year.incomeTax)],
+      ["Total federal tax for the year", money(r.year.total), true],
+      ["Share of your income that goes to tax", (r.rate * 100).toFixed(1) + "%"],
+      [p.withheld > 0 ? "That share of this payment (" + money(r.gross) + " before tax was taken out)" : "That share of this payment", money(r.estimate)]
+    ];
+    if (p.withheld > 0) {
+      rows.push(["Minus tax already taken out", "−" + money(p.withheld)]);
+    }
+    rows.push(["Set aside now", money(p.tax), true]);
+    var calc = $("calc"); calc.innerHTML = "";
+    rows.forEach(function (row) {
+      var dt = document.createElement("dt"); dt.textContent = row[0];
+      var dd = document.createElement("dd"); dd.textContent = row[1];
+      if (row[2]) { dt.className = "sum"; dd.className = "sum"; }
+      calc.appendChild(dt); calc.appendChild(dd);
+    });
+
+    // Notes
+    var notes = [];
+    if (p.withheldChoice === "unsure") notes.push("We assumed no tax was taken out. Check your pay stub or ask your athletic department.");
+    if (p.withheldChoice === "yes" && p.tax === 0) notes.push("The tax already taken out may cover this payment. Check with a tax professional.");
+    if (p.withheldChoice === "yes" && p.withheld > 0) notes.push("Tax taken out of your pay can mean your school treats you as an employee. That can change how much you owe. Check with a tax professional.");
+    if (p.type === "unsure") notes.push("We assumed this carries self-employment tax. Check with a tax professional.");
+    if (p.type === "revshare") notes.push("We included self-employment tax for school revenue-share money. How these payments are taxed has not been checked yet. Check with a tax professional.");
+    if (freq === "monthly") notes.push("This assumes the same amount every month. If an amount changes, enter that month's payment on its own.");
+    if (p.soFarRaised) notes.push("Your saved payments this year plus this one add up to " + money(p.expected) + ", more than your expected income, so we used " + money(p.expected) + ".");
+    if (p.monthlyRaised) notes.push("Your expected income for the year was less than 12 months of this payment, so we used 12 × this payment (" + money(p.expected) + ").");
+    if (freq === "year") notes.push("We treated this payment as your whole income for the year. If more money comes later, enter it as its own payment.");
+    if (r.expectedRaised && freq !== "year") notes.push("Your expected income for the year was lower than this payment, so we used the payment amount instead.");
+    if (r.yearIncome > 1000000) notes.push("At this income level, we recommend getting your own financial adviser.");
+    if (r.yearIncome < 15000) notes.push("Your expected income is below the 2025 federal standard deduction ($15,750), so you may owe little or no federal income tax. Self-employment tax may still apply. Check with a tax professional.");
+    var ul = $("notes"); ul.innerHTML = "";
+    notes.forEach(function (n) { var li = document.createElement("li"); iconText(li, "info", n); ul.appendChild(li); });
+    ul.hidden = notes.length === 0;
+  }
+
+  function setSavings(v) {
+    var rest = current.received - current.tax;
+    v = Math.round(v);
+    if (isNaN(v)) v = current.savings;
+    v = Math.max(0, Math.min(rest, v));
+    current.savings = v;
+    current.spending = rest - v;
+    renderSplit();
+  }
+  function setPercent(pc) { setSavings((current.received - current.tax) * pc / 100); }
+  $("mix-range").addEventListener("input", function () { setPercent(+this.value); });
+  document.querySelectorAll(".presets button").forEach(function (b) {
+    b.addEventListener("click", function () { setPercent(+b.dataset.p); });
+  });
+  $("save-minus").addEventListener("click", function () { setSavings(current.savings - 100); });
+  $("save-plus").addEventListener("click", function () { setSavings(current.savings + 100); });
+  $("save-input").addEventListener("change", function () { setSavings(parseMoney(this.value)); });
+  $("save-input").addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); setSavings(parseMoney(this.value)); } });
+
+  $("back-new").addEventListener("click", function () { show("new"); });
+  $("save-split").addEventListener("click", function () {
+    var all = loadPayments();
+    all.push(current);
+    var ok = storePayments(all);
+    var left = current.received - current.tax;
+    if (ok && left > 0) storeShare(current.savings / left);   // next payment starts with this split
+    var msg = $("saved-msg");
+    var took = "";
+    if (startedAt !== null) {
+      var secs = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
+      took = " Done in " + (secs >= 60 ? Math.floor(secs / 60) + " min " : "") + (secs % 60) + " s.";
+      startedAt = null;
+    }
+    if (ok) iconText(msg, "check-circle", "Saved. Your split is on this device." + took);
+    else iconText(msg, "info", "This browser blocked saving. Write the three amounts down, or try a normal (not private) browser window.");
+    msg.classList.toggle("ok", ok);
+    msg.hidden = false;
+    viewingSaved = true;
+    show("list");
+  });
+  $("back-list").addEventListener("click", function () { show("list"); });
+  $("delete-start").addEventListener("click", function () { $("delete-confirm").hidden = false; });
+  $("delete-no").addEventListener("click", function () { $("delete-confirm").hidden = true; });
+  $("delete-yes").addEventListener("click", function () {
+    var id = current.id;
+    storePayments(loadPayments().filter(function (p) { return p.id !== id; }));
+    iconText($("saved-msg"), "trash", "Payment deleted.");
+    $("saved-msg").classList.remove("ok");
+    $("saved-msg").hidden = false;
+    show("list");
+  });
+
+  // ---- My payments ----
+  function renderList(animate) {
+    var all = loadPayments().slice().sort(function (a, b) { return (b.date || "").localeCompare(a.date || ""); });
+    var yr = String(new Date().getFullYear());
+    $("this-year").textContent = yr;
+    var inYear = all.filter(function (p) { return (p.date || "").slice(0, 4) === yr; });
+    var total = inYear.reduce(function (s, p) { return s + (p.tax || 0); }, 0);
+    if (animate) countUp($("year-tax"), total); else setAmt($("year-tax"), total);
+    $("year-count").textContent = inYear.length === 1 ? "From 1 payment this year." : "From " + inYear.length + " payments this year.";
+
+    // Income tracker: income so far this year against the latest yearly guess, by payment type.
+    $("income-card").hidden = inYear.length === 0;
+    if (inYear.length) {
+      var soFar = incomeIn(yr), exp = lastExpected(yr);
+      $("inc-year").textContent = yr;
+      if (animate) countUp($("inc-sofar"), soFar); else setAmt($("inc-sofar"), soFar);
+      $("inc-bar-wrap").hidden = !(exp > 0);
+      $("inc-fill").style.width = exp > 0 ? Math.min(100, soFar / exp * 100) + "%" : "0";
+      if (!(exp > 0)) $("inc-of").textContent = "";
+      else if (soFar > exp) $("inc-of").textContent = "More than your expected " + money(exp) + ".";
+      else $("inc-of").textContent = "of about " + money(exp) + " expected (" + Math.round(soFar / exp * 100) + "%)";
+      var types = $("inc-types"); types.innerHTML = "";
+      ["revshare", "nil", "unsure"].forEach(function (t) {
+        var sum = inYear.filter(function (p) { return p.type === t; }).reduce(function (s, p) { return s + grossOf(p); }, 0);
+        if (!sum) return;
+        var chip = document.createElement("span");
+        chip.innerHTML = icon(TYPE_ICON[t]) + "<span></span><b></b>";
+        chip.children[1].textContent = TYPE_LABEL[t];
+        chip.children[2].textContent = money(sum);
+        types.appendChild(chip);
+      });
+      $("inc-note").textContent = soFar > exp && exp > 0
+        ? "Raise your yearly guess on your next payment, so the tax estimate keeps up. Amounts are before any tax was taken out."
+        : "From the payments you've saved, before any tax was taken out. A monthly payment counts once, so save each month's payment.";
+    }
+    var list = $("pay-list"); list.innerHTML = "";
+    $("empty").hidden = all.length > 0;
+    all.forEach(function (p) {
+      var li = document.createElement("li");
+      var b = document.createElement("button"); b.type = "button";
+      var w = function (n) { return p.received > 0 ? (n / p.received * 100) + "%" : "0"; };
+      b.innerHTML =
+        '<span class="chip soft">' + icon(TYPE_ICON[p.type] || "receipt") + '</span>' +
+        '<strong></strong>' +
+        '<span class="go">' + icon("chevron-right") + '</span>' +
+        '<span class="when"></span>' +
+        '<span class="mini" aria-hidden="true">' +
+        '<span style="background:var(--tax);width:' + w(p.tax) + '"></span>' +
+        '<span style="background:var(--save);width:' + w(p.savings) + '"></span>' +
+        '<span style="background:var(--spend);width:' + w(p.spending) + '"></span>' +
+        '</span>' +
+        '<span class="three">' +
+        '<span><span class="dot" style="background:var(--tax)"></span>Taxes <b class="t"></b></span>' +
+        '<span><span class="dot" style="background:var(--save)"></span>Savings <b class="s"></b></span>' +
+        '<span><span class="dot" style="background:var(--spend)"></span>Spending <b class="p"></b></span>' +
+        '</span>';
+      b.querySelector("strong").textContent = money(p.received) + " · " + (TYPE_LABEL[p.type] || "") + (FREQ_TAG[p.freq] || "");
+      b.querySelector(".when").textContent = fmtDate(p.date);
+      b.querySelector(".t").textContent = money(p.tax);
+      b.querySelector(".s").textContent = money(p.savings);
+      b.querySelector(".p").textContent = money(p.spending);
+      b.addEventListener("click", function () { current = p; viewingSaved = true; $("saved-msg").hidden = true; renderSplit(); show("split"); });
+      li.appendChild(b); list.appendChild(li);
+    });
+  }
+
+  $("tab-new").addEventListener("click", function () { viewingSaved = false; show("new"); });
+  $("tab-list").addEventListener("click", function () { $("saved-msg").hidden = true; viewingSaved = true; show("list"); });
+  $("tab-learn").addEventListener("click", function () { show("learn"); });
+  // "What is ...?" links in "How was this figured?" open the matching Learn card.
+  document.querySelectorAll("[data-learn]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      show("learn");
+      var card = $(b.dataset.learn);
+      card.open = true;
+      card.scrollIntoView({ block: "center", behavior: REDUCE ? "auto" : "smooth" });
+    });
+  });
+  $("logo").addEventListener("click", function () { show("welcome"); });
+  $("start").addEventListener("click", function () { viewingSaved = false; show("new"); });
+
+  // First visit opens on the welcome screen; once payments are saved, go straight to New payment.
+  show(loadPayments().length ? "new" : "welcome");
+})();
+</script>
+</body>
+</html>
